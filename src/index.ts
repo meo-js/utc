@@ -2,5 +2,6 @@
  * @module
  */
 
-// @mos-export utils/*.ts
-// @mos-export types/*.ts
+// #region Generated export
+
+// #endregion
