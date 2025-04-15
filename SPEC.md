@@ -36,8 +36,8 @@
 /**
  * This is a useful demonstration module.
  * 
- * @module
  * @public
+ * @module
  */
 
 export * from "./config.js";
@@ -54,12 +54,15 @@ export * from "./pool.js";
 
 ```mermaid
 graph TD
+    A["package（包）"] --> B;
     B["index.js (根模块)"];
     B --> C["config.js"];
     B --> D["utils.js"];
     D --> E["math.js"];
     D --> F["pool.js"];
 ```
+
+需注意的是，若包机制支持子路径导出，那么可能不止有一个根模块。
 
 ### 模块可见性
 
@@ -83,8 +86,8 @@ graph TD
 /**
  * This is a useful demonstration module.
  * 
- * @module
  * @public
+ * @module
  */
 
 /**
@@ -123,7 +126,7 @@ export const value = 1;
 
 本章描述一种严格的包结构，该规范皆在提高包的可维护性，并提供对自动化生成工具的支持。
 
-#### 源码根目录
+#### 根目录规范
 
 需指定一个目录为源码的根目录，模块树基于该目录进行构建。
 
@@ -136,11 +139,11 @@ package/
 └── package.json
 ```
 
-#### 公开模块即根模块
+#### 根模块规范
 
-即将每个公开模块都视为根模块，需要在包机制中导出。
+所有公开模块都会视为根模块，需在包机制中进行导出。
 
-如果包机制没有子路径导出的功能，则不允许有多个根模块，如果有的话则支持嵌套根模块，比如：
+包机制如果有子路径功能，则支持有多个根模块（公开模块），例如：
 
 ```
 package/
@@ -165,20 +168,45 @@ package/
 }
 ```
 
-#### 根模块子路径
+如果包机制没有子路径导出的功能，则不允许存在多个根模块（公开模块）。
 
-推荐以模块相对于根目录切去掉文件扩展名的路径作为导出子路径，例如：
+#### 子路径规范
+
+默认情况下，需以模块本身相对于根目录且去掉文件扩展名的路径作为导出子路径，例如：
 
 - `src/tools/math.js` -> `./tools/math`
 - `src/utils.js` -> `./utils`
 
-如果不是以此对应，请
+若需要定义为其它路径，则需添加 `@modulePath` 标记，例如：
 
+`src/tools/math.js`
+```js
+/**
+ * This is a useful demonstration module.
+ * 
+ * @public
+ * @module
+ * @modulePath ./math
+ */
 
-根模块默认情况下对应着与导出子路径对应的子路径
+/**
+ * Example Class
+ */
+export class Example { ... }
+```
 
-#### `index`
+这样 `src/tools/math.js` 的子路径就被定义为 `./math`。
 
-文件名为 `index` 的模块会被特殊处理，
+#### index 文件规范
 
-#### 
+文件名为 `index` 的模块会被特殊处理，视为在上级目录中的一个模块，名称是所在目录的名称。
+
+例如：
+
+- `src/tools/index.js` 的默认子路径是 `./tools`
+- `src/index.js` 的默认子路径是 `.`
+
+所以如果存在路径为 `src/tools.js` 的模块，就不允许存在路径为 `src/tools/index.js` 的模块，这两个模块路径会发生冲突。
+
+#### 模块树规范
+
