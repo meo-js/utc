@@ -2,6 +2,4 @@
  * @module
  */
 
-// #region Generated export
-
-// #endregion
+// #export

@@ -1,70 +1,16 @@
-# Module Organization Standard（MOS）
+# ECMAScript Package Standard
 
 ## 简介
 
-这是一种 ECMAScript Module 的组织规范，目标是统一 ECMAScript 模块和包的组织结构，并且提供自动化工具简化操作。
+该标准尝试规范化由多个 ECMAScript Module 组成一个 Package 的方法，除了规则的简单、一致、可维护性之外，也同样会保证对自动化工具的良好支持。
 
-当前规范主要关注以下几点：
+## 引用
 
-- 模块、值的可见性
-- 严格包结构
+- ECMAScript Module 规定每个文件都是一个模块。
+- MeoDoc 规定带有 `@module` 标记的文档注释视为模块级别注释。
+- 包机制即诸如 `Npm Package` 这样的将多个模块组成一个包进行使用的约定。
 
-## 规范
-
-> 提示：
-> - ECMAScript Module 规定每个文件都是一个模块。
-> - MeoDoc 规定带有 `@module` 标记的文档注释视为模块级别注释。
-> - 包机制即诸如 `Npm Package` 这样的将多个模块视为一个包的规范。
-
-### 模块树
-
-使用 `export` 导出模块时，导出语句所在的模块和被导出模块互称父模块与子模块。
-
-通过包机制直接公开的模块称为根模块。
-
-例如以下 `Npm Package` 的结构：
-
-`package.json`
-```json
-{
-    "exports": "src/index.js"
-}
-```
-
-`src/index.js`
-```js
-/**
- * This is a useful demonstration module.
- * 
- * @public
- * @module
- */
-
-export * from "./config.js";
-export * from "./utils.js";
-```
-
-`src/utils.js`
-```js
-export * from "./math.js";
-export * from "./pool.js";
-```
-
-对应的模块树为：
-
-```mermaid
-graph TD
-    A["package（包）"] --> B;
-    B["index.js (根模块)"];
-    B --> C["config.js"];
-    B --> D["utils.js"];
-    D --> E["math.js"];
-    D --> F["pool.js"];
-```
-
-需注意的是，若包机制支持子路径导出，那么可能不止有一个根模块。
-
-### 模块可见性
+## 模块可见性
 
 在注释中使用以下标记来声明模块的可见性：
 
@@ -96,7 +42,7 @@ graph TD
 export class Example { ... }
 ```
 
-### 值的可见性
+## 值的可见性
 
 默认情况下，值仅在模块内可见。
 
@@ -112,7 +58,7 @@ const value = 1;
 export const value = 1;
 ```
 
-如果不想值被其它包访问，可以添加 `@internal` 标记，则该值仅在包范围内公开。
+如果不想值被其它包访问，可以添加 `@internal` 标记，则该值被声明为私有值，仅在包范围内公开。
 
 `index.js`
 ```js
@@ -122,13 +68,61 @@ export const value = 1;
 export const value = 1;
 ```
 
-### 严格包结构
+## 推荐包结构
 
-本章描述一种严格的包结构，该规范皆在提高包的可维护性，并提供对自动化生成工具的支持。
+本章描述一种推荐的包结构的组织方式，皆在提高可维护性，并提供对自动化生成工具的支持。
 
-#### 根目录规范
+### 概念
 
-需指定一个目录为源码的根目录，模块树基于该目录进行构建。
+使用 `export` 导出模块时，导出语句所在的模块和被导出模块互称父模块与子模块。
+
+通过包机制直接导出的模块称为根模块。
+
+例如以下 `Npm Package` 的结构：
+
+`package.json`
+```json
+{
+    "exports": "src/index.js"
+}
+```
+
+`src/index.js`
+```js
+/**
+ * This is a useful demonstration module.
+ * 
+ * @public
+ * @module
+ */
+
+export * from "./config.js";
+export * from "./utils.js";
+```
+
+`src/utils.js`
+```js
+export * from "./math.js";
+export * from "./pool.js";
+```
+
+对应的包结构为：
+
+```mermaid
+graph TD
+    A["package（包）"] --> B;
+    B["index.js (根模块)"];
+    B --> C["config.js"];
+    B --> D["utils.js"];
+    D --> E["math.js"];
+    D --> F["pool.js"];
+```
+
+需注意的是，若包机制支持子路径导出，那么可能不止有一个根模块。
+
+### 根目录
+
+需指定一个目录为源码的根目录，包结构基于该目录进行构建。
 
 推荐使用 `src` 目录作为根目录，例如：
 
@@ -139,7 +133,7 @@ package/
 └── package.json
 ```
 
-#### 根模块规范
+### 根模块
 
 所有公开模块都会视为根模块，需在包机制中进行导出。
 
@@ -151,8 +145,8 @@ package/
 │   ├── tools/
 │   │   ├── math.js - `@public`
 │   │   └── c4.js
-│   ├── utils.js - `@public`
-│   └── index.js - `@public`
+│   ├── utils.js    - `@public`
+│   └── index.js    - `@public`
 └── package.json
 ```
 
@@ -170,7 +164,7 @@ package/
 
 如果包机制没有子路径导出的功能，则不允许存在多个根模块（公开模块）。
 
-#### 子路径规范
+### 子路径
 
 默认情况下，需以模块本身相对于根目录且去掉文件扩展名的路径作为导出子路径，例如：
 
@@ -197,16 +191,157 @@ export class Example { ... }
 
 这样 `src/tools/math.js` 的子路径就被定义为 `./math`。
 
-#### index 文件规范
+### 入口模块
 
-文件名为 `index` 的模块会被特殊处理，视为在上级目录中的一个模块，名称是所在目录的名称。
+被命名为 `index` 的文件称为该模块所在目录的入口模块。
 
-例如：
+例如 `src/index.js` 是 `src` 目录的入口模块。
 
+如果模块在同级有一个相同名称的子目录，则称为该目录的入口模块。
+
+例如 `src/utils.js` 是 `src/utils/` 目录的入口模块。
+
+子路径的生成会遵循该规范，例如：
+
+- `src/utils.js` 的默认子路径是 `./utils`
 - `src/tools/index.js` 的默认子路径是 `./tools`
 - `src/index.js` 的默认子路径是 `.`
 
-所以如果存在路径为 `src/tools.js` 的模块，就不允许存在路径为 `src/tools/index.js` 的模块，这两个模块路径会发生冲突。
+同个目录不允许存在多个入口模块。
 
-#### 模块树规范
+例如存在路径为 `src/tools.js` 的模块，就不允许存在路径为 `src/tools/index.js` 的模块。
 
+### 特殊模块标识符
+
+工具可以提供对以下特殊模块标识符的支持：
+
+#### `!sub-modules`
+
+当模块是入口模块时可用，该标识符指代该入口模块对应的目录内的所有模块。
+
+例如，包的文件树结构为：
+
+```
+package/
+├── src/
+│   ├── tools/
+│   │   ├── math.js
+│   │   └── c4.js
+│   ├── utils.js
+│   ├── a.js
+│   └── index.js    - `@public`
+└── package.json
+```
+
+并且 `index.js` 模块有 `export * from "!sub-modules"` 导出语句。
+
+上面的文件树中只有一个 `src` 目录的入口模块 `src/index.js`，所以所有在 `src` 目录中的模块都将作为它的子模块，而它也作为根模块构成这样的包结构：
+
+```mermaid
+graph TD
+    A["package"] --> B["index.js"];
+    B --> C["utils.js"];
+    B --> D["a.js"];
+    B --> E["math.js"];
+    B --> F["c4.js"];
+```
+
+需要注意：
+
+- 如果目录中有其它入口模块，则仅会将入口模块本身作为子模块。
+- 如果目录中有其它根模块，则会直接忽略该模块本身和目录。
+- 如果模块或者值是私有的，那么会直接被忽略。
+
+例如，包的文件树是这样的：
+
+```
+package/
+├── src/
+│   ├── tools/
+│   │   ├── math/
+│   │   │   ├── vec2.js
+│   │   │   └── vec3.js
+│   │   ├── math.js
+│   │   └── time.js
+│   ├── tools.js    - `@public`
+│   ├── others/
+│   │   ├── b.js
+│   │   └── c.js
+│   ├── utils.js    - `@public`
+│   ├── a.js
+│   └── index.js    - `@public`
+└── package.json
+```
+
+那么对应地将映射成这样的包结构：
+
+```mermaid
+graph TD
+    A["package"] --> B["index.js"];
+    A --> C["utils.js"];
+    A --> D["tools.js"];
+    D --> E["math.js"];
+    E --> K["vec2.js"];
+    E --> L["vec3.js"];
+    B --> F["a.js"];
+    B --> I["b.js"];
+    B --> J["c.js"];
+    D --> G["time.js"];
+```
+
+#### 控制标记
+
+自动化工具需要可以配置包在默认情况下是否进行自动映射，并且能够通过以下标志来控制映射行为。
+
+**`@moduleMapping [true | false]`**
+
+在入口模块可以添加 `@moduleMapping` 标记来开关该模块是否进行自动映射，例如：
+
+```js
+/**
+ * @module
+ * @moduleMapping false
+ */
+```
+
+如果标记不带任何参数即等同于 `@moduleMapping true`。
+
+
+
+#### 常见误区
+
+**如果使用自动映射则不能再进行手动导出**
+
+这是错误的观点，自动映射只是为了简化开发流程与规范包的一般结构，一般工具会采取在入口模块的固定区域维护导出语句来实现自动映射，例如：
+
+`./utils.js`
+```js
+import * as tools_d from "./tools/d.js";
+
+const d = transform(tools_d);
+
+// #region Generated export
+export * from "./utils/a.js";
+export * from "./utils/b.js";
+export * from "./utils/c.js";
+// #endregion
+
+export { d, tools_d };       // <-- 依然可以手动导出
+```
+
+上面的例子中，工具会在 `#region Generated export` 与 `#endregion` 注释之间生成导出语句来维护自动的包结构，但依然可以导出 `d` 或者 `tools_d` 等其它模块和值。
+
+并且可以通过诸如上面提到的 `@moduleMapping false` 的标记来关闭自动映射：
+
+`./utils.js`
+```js
+/**
+ * @module
+ * @moduleMapping false
+ */
+import * as tools_d from "./tools/d.js";
+
+const d = transform(tools_d);
+
+export { d, tools_d };
+```
