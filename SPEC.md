@@ -252,7 +252,7 @@ graph TD
 - 如果目录中有其它根模块，则会直接忽略该模块本身和目录。
 - 如果模块或者值是私有的，那么会直接被忽略。
 
-例如，包的文件树是这样的：
+举一个比较复杂的例子：
 
 ```
 package/
@@ -273,7 +273,7 @@ package/
 └── package.json
 ```
 
-那么对应地将映射成这样的包结构：
+如果所有入口模块都使用了 `!sub-modules` 导出子模块，那么对应地将映射成这样的包结构：
 
 ```mermaid
 graph TD
@@ -287,61 +287,4 @@ graph TD
     B --> I["b.js"];
     B --> J["c.js"];
     D --> G["time.js"];
-```
-
-#### 控制标记
-
-自动化工具需要可以配置包在默认情况下是否进行自动映射，并且能够通过以下标志来控制映射行为。
-
-**`@moduleMapping [true | false]`**
-
-在入口模块可以添加 `@moduleMapping` 标记来开关该模块是否进行自动映射，例如：
-
-```js
-/**
- * @module
- * @moduleMapping false
- */
-```
-
-如果标记不带任何参数即等同于 `@moduleMapping true`。
-
-
-
-#### 常见误区
-
-**如果使用自动映射则不能再进行手动导出**
-
-这是错误的观点，自动映射只是为了简化开发流程与规范包的一般结构，一般工具会采取在入口模块的固定区域维护导出语句来实现自动映射，例如：
-
-`./utils.js`
-```js
-import * as tools_d from "./tools/d.js";
-
-const d = transform(tools_d);
-
-// #region Generated export
-export * from "./utils/a.js";
-export * from "./utils/b.js";
-export * from "./utils/c.js";
-// #endregion
-
-export { d, tools_d };       // <-- 依然可以手动导出
-```
-
-上面的例子中，工具会在 `#region Generated export` 与 `#endregion` 注释之间生成导出语句来维护自动的包结构，但依然可以导出 `d` 或者 `tools_d` 等其它模块和值。
-
-并且可以通过诸如上面提到的 `@moduleMapping false` 的标记来关闭自动映射：
-
-`./utils.js`
-```js
-/**
- * @module
- * @moduleMapping false
- */
-import * as tools_d from "./tools/d.js";
-
-const d = transform(tools_d);
-
-export { d, tools_d };
 ```
