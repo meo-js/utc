@@ -1,0 +1,77 @@
+{
+  "name": "@meojs/utc",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "description": "Meo's unified development toolchain.",
+  "author": {
+    "name": "SmallMain",
+    "email": "smallmain@outlook.com",
+    "url": "https://www.smallmain.com/"
+  },
+  "homepage": "https://www.smallmain.com/",
+  "repository": "github:meo-js/utc",
+  "bugs": "https://github.com/meo-js/utc/issues",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "bin": {
+    "utc": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/lib.mjs",
+      "require": "./dist/lib.cjs",
+      "types": "./dist/lib.d.ts"
+    }
+  },
+  "files": [
+    "assets",
+    "dist",
+    "README*.md",
+    "LICENSE"
+  ],
+  "lint-staged": {
+    "src/**/*": [
+      "eslint",
+      "prettier --ignore-unknown --check"
+    ]
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged",
+    "commit-msg": "npx commitlint --edit $1"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "start:install-git-hook": "bun src/cli.ts install-git-hook",
+    "start:lint": "bun src/cli.ts lint",
+    "prepare": "simple-git-hooks",
+    "publish:patch": "npm version patch && npm publish",
+    "publish:minor": "npm version minor && npm publish",
+    "publish:major": "npm version major && npm publish"
+  },
+  "peerDependencies": {
+    
+  },
+  "dependencies": {
+    "@commitlint/config-conventional": "^19.8.1",
+    "lint-staged": "^16.1.4",
+    "simple-git-hooks": "^2.13.1",
+    "c12": "^3.2.0",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@meojs/cfgs": "^2.0.21",
+    "@types/node": "~20.19.0",
+    "@types/yargs": "^17.0.33"
+  }
+}

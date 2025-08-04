@@ -1,0 +1,4 @@
+{
+    "pre-commit": "npx --no utc lint --staged",
+    "commit-msg": "npx --no utc lint -m $1"
+}

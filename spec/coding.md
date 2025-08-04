@@ -178,7 +178,7 @@ function readAsync(): Promise<string>;
 
 **文档级标记**
 
-- @module identifier - 模块级别文档，后跟标识符用于推荐导入别名，详情可查看：[ESP SPEC](./ESP_SPEC.md)。
+- @module identifier - 模块级别文档，后跟标识符用于推荐导入别名，详情可查看：[ESP SPEC](./esp.md)。
 - @link - 用于且仅用于链接到其它代码符号，其余网址、文件链接等使用 Markdown 链接格式。
 - @group 用于在文档网站中分类展示。
 - @groupDescription 用于在文档网站中显示分类的注释。

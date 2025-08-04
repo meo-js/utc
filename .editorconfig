@@ -1,0 +1,43 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+[*.{js,ts,mjs,mts,jsx,tsx,jsm,cjs,cts,ctsx,mtsx}]
+charset = utf-8
+trim_trailing_whitespace = true
+indent_size = 4
+indent_style = space
+
+[*.{md}]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[*.sln]
+indent_style = tab
+
+[*.{csproj,vbproj,vcxproj.filters,proj,projitems,shproj}]
+indent_size = 4
+indent_style = space
+
+[*.{htm,html,css,sass,scss,less,pcss,svg,vue}]
+indent_size = 4
+indent_style = space
+
+[*.{xml,config,props,targets,nuspec,resx,ruleset,vsixmanifest,vsct}]
+indent_size = 4
+indent_style = space
+
+[*.{json,json5,webmanifest}]
+indent_size = 4
+indent_style = space
+
+[package.json]
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 4
+indent_style = space
