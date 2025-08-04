@@ -8,14 +8,14 @@
 
 - ECMAScript Module 规定每个文件都是一个模块。
 - MeoDoc 规定带有 `@module` 标记的文档注释视为模块级别注释。
-- 包机制即诸如 `Npm Package` 这样的将多个模块组成一个包进行使用的约定。
+- 比如 `Npm Package` 这样将多模块组成单个包的约定称为包机制。
 
 ## 模块可见性
 
 在注释中使用以下标记来声明模块的可见性：
 
-- `@public` - 公开模块，可被其它包访问
-- `@internal` - 私有模块，不允许被其它包访问
+- `@public` - 公开模块，可被其它包访问。
+- `@internal` - 私有模块，不允许被其它包访问。
 - `@inherit` - 普通模块，可见性取决于父模块，可通过公开的父模块被访问。
 
 无任何可见性标记的情况下，模块默认会被视为用 `@inherit` 标记，不推荐显式添加此标记。
@@ -203,9 +203,9 @@ export class Example { ... }
 
 子路径的生成会遵循该规范，例如：
 
-- `src/utils.js` 的默认子路径是 `./utils`
-- `src/tools/index.js` 的默认子路径是 `./tools`
-- `src/index.js` 的默认子路径是 `.`
+- `src/utils.js` 的默认子路径是 `./utils`。
+- `src/tools/index.js` 的默认子路径是 `./tools`。
+- `src/index.js` 的默认子路径是 `.`。
 
 同个目录不允许存在多个入口模块。
 
@@ -287,4 +287,62 @@ graph TD
     B --> I["b.js"];
     B --> J["c.js"];
     D --> G["time.js"];
+```
+
+### 特殊文档注释标记
+
+#### `@moduleTag` & `@tag`
+
+模块默认情况下带有 `default` 标签，相当于以下声明：
+
+```js
+/**
+ * This is a useful demonstration module.
+ * 
+ * @public
+ * @module
+ * @moduleTag default
+ */
+```
+
+每个导出的值默认情况下带有所属模块的标签，相当于以下声明：
+
+```js
+/**
+ * This is a useful demonstration module.
+ * 
+ * @public
+ * @module
+ * @moduleTag default
+ */
+
+/**
+ * @tag default
+ */
+export const value = 1;
+```
+
+你可以通过添加 `@moduleTag` 来指定模块的标签，通过 `@tag` 来指定值的标签：
+
+```js
+/**
+ * This is a useful demonstration module.
+ * 
+ * @public
+ * @module
+ * @moduleTag utils
+ */
+
+/**
+ * @tag hooks
+ */
+export const value = 1;
+```
+
+当工具自动生成导出时，应只生成带有 `default` 标签值的导出，并提供方法导出指定标签的值。
+
+比如以这样的方式将所有带 `symbol` 标签的值聚合导出为 `Symbol`：
+
+```js
+// #export tag:symbol as Symbol from "**/*.js"
 ```
