@@ -60,13 +60,30 @@
     "publish:major": "npm version major && npm publish"
   },
   "peerDependencies": {
-    
+    "@meojs/cfgs": "^2.0.21",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "prettier": {
+      "optional": true
+    },
+    "@meojs/cfgs": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@commitlint/config-conventional": "^19.8.1",
-    "lint-staged": "^16.1.4",
-    "simple-git-hooks": "^2.13.1",
+    "@commitlint/format": "^19.8.1",
+    "@commitlint/lint": "^19.8.1",
+    "@commitlint/load": "^19.8.1",
     "c12": "^3.2.0",
+    "glob": "^11.0.3",
+    "nano-spawn": "^1.0.2",
+    "simple-git-hooks": "^2.13.1",
     "yargs": "^18.0.0"
   },
   "devDependencies": {

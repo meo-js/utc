@@ -1,9 +1,9 @@
-import { chdir, cwd } from "process";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { resolveConfig } from "./config.js";
+import { scriptExt } from "./shared.js";
 
-// TODO: 测试
-chdir("./example");
+export type Argv = typeof argv;
 
 export const cli = yargs(hideBin(process.argv))
     .scriptName("utc")
@@ -12,12 +12,27 @@ export const cli = yargs(hideBin(process.argv))
         alias: "p",
         describe: "Project path.",
         type: "string",
-        default: cwd(),
         defaultDescription: "Current working directory",
+        requiresArg: true,
     })
+    .option("js.source", {
+        describe: "JavaScript Source code paths.",
+        type: "string",
+        defaultDescription: `src/**/*.${scriptExt}`,
+    })
+    .command(
+        "*",
+        false,
+        () => {},
+        async args => {
+            await printDebugInfo(args);
+        },
+    )
     // 配置
     .alias("v", "version")
     .alias("h", "help")
+    // NOTE: yargs 不能很好地处理点号（.）分隔的选项
+    .parserConfiguration({ "dot-notation": false })
     .detectLocale(false)
     .demandCommand(1, "You need at least one command before moving on.")
     .strict()
@@ -25,11 +40,12 @@ export const cli = yargs(hideBin(process.argv))
     .recommendCommands();
 
 // 子命令
-await import("./lint.js");
-await import("./install-git-hook.js");
+await import("./commands/lint.js");
+await import("./commands/install-git-hook.js");
 
 const argv = await cli.parseAsync();
 
-export function printBaseInfo(args: typeof argv) {
-    console.log("Project Path:", args.project);
+export async function printDebugInfo(args: Argv) {
+    console.log("Cmd Args:", args);
+    console.log("Config:", await resolveConfig(args));
 }
