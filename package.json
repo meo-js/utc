@@ -35,26 +35,10 @@
     "README*.md",
     "LICENSE"
   ],
-  "lint-staged": {
-    "src/**/*": [
-      "eslint",
-      "prettier --ignore-unknown --check"
-    ]
-  },
-  "simple-git-hooks": {
-    "pre-commit": "npx lint-staged",
-    "commit-msg": "npx commitlint --edit $1"
-  },
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ]
-  },
   "scripts": {
     "start": "bun src/cli.ts",
     "start:install-git-hook": "bun src/cli.ts install-git-hook",
     "start:lint": "bun src/cli.ts lint",
-    "prepare": "simple-git-hooks",
     "publish:patch": "npm version patch && npm publish",
     "publish:minor": "npm version minor && npm publish",
     "publish:major": "npm version major && npm publish"
