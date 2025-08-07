@@ -1,4 +1,4 @@
 {
-    "pre-commit": "npx --no utc lint --staged",
-    "commit-msg": "npx --no utc lint -m $1"
+  "pre-commit": "pnpm exec utc lint --staged",
+  "commit-msg": "pnpm exec utc lint -m $1"
 }

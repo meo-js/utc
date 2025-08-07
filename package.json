@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "start": "bun src/cli.ts",
-    "start:install-git-hook": "bun src/cli.ts install-git-hook",
+    "start:init": "bun src/cli.ts init --project=./example",
     "start:lint": "bun src/cli.ts lint",
     "publish:patch": "npm version patch && npm publish",
     "publish:minor": "npm version minor && npm publish",
@@ -65,6 +65,7 @@
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
     "@inquirer/prompts": "^7.8.0",
+    "@meojs/pkg-utils": "^1.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
     "nano-spawn": "^1.0.2",

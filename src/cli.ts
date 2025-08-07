@@ -41,7 +41,7 @@ export const cli = yargs(hideBin(process.argv))
 
 // 子命令
 await import("./commands/lint.js");
-await import("./commands/git-hook.js");
+await import("./commands/init.js");
 
 const argv = await cli.parseAsync();
 
