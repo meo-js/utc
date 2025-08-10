@@ -40,8 +40,8 @@ export const cli = yargs(hideBin(process.argv))
     .recommendCommands();
 
 // 子命令
-await import("./commands/lint.js");
 await import("./commands/init.js");
+await import("./commands/lint.js");
 
 const argv = await cli.parseAsync();
 

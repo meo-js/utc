@@ -39,23 +39,19 @@
     "start": "bun src/cli.ts",
     "start:init": "bun src/cli.ts init --project=./example",
     "start:lint": "bun src/cli.ts lint",
-    "publish:patch": "npm version patch && npm publish",
-    "publish:minor": "npm version minor && npm publish",
-    "publish:major": "npm version major && npm publish"
+    "publish:patch": "pnpm version patch && pnpm publish",
+    "publish:minor": "pnpm version minor && pnpm publish",
+    "publish:major": "pnpm version major && pnpm publish"
   },
   "peerDependencies": {
-    "@meojs/cfgs": "^2.0.21",
-    "eslint": "^9.22.0",
-    "prettier": "^3.5.3"
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2"
   },
   "peerDependenciesMeta": {
     "eslint": {
       "optional": true
     },
     "prettier": {
-      "optional": true
-    },
-    "@meojs/cfgs": {
       "optional": true
     }
   },
@@ -64,7 +60,8 @@
     "@commitlint/format": "^19.8.1",
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
-    "@inquirer/prompts": "^7.8.0",
+    "@inquirer/prompts": "^7.8.1",
+    "@meojs/cfgs": "^2.0.30",
     "@meojs/pkg-utils": "^1.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
@@ -73,8 +70,8 @@
     "yargs": "^18.0.0"
   },
   "devDependencies": {
-    "@meojs/cfgs": "^2.0.21",
     "@types/node": "~20.19.0",
-    "@types/yargs": "^17.0.33"
+    "@types/yargs": "^17.0.33",
+    "prettier-plugin-organize-imports": "^4.2.0"
   }
 }

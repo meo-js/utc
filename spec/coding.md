@@ -143,17 +143,28 @@ function readAsync(): Promise<string>;
  * This book is intended for referencing current coding standards
  * to better improve code maintainability.
  * 
+ * @param arg1 This is description.
+ * @returns This is description.
+ * 
+ * @example Description
+ * ```ts
+ * call("hello");
+ * ```
+ * 
+ * @internal
+ * @experimental
+ * @since 1.0.0
  * @see [Github](https://github.com)
  */
 ```
 
-#### 标签参考
+### 标签参考
 
 **接口稳定性**
 
 - @experimental - 实验性接口
 - @deprecated - 废弃的
-- @since - 接口的可用时间
+- @since - 接口的可用版本号，使用 semver 且不带 `v` 字符。
 
 **可访问性**
 
@@ -165,9 +176,9 @@ function readAsync(): Promise<string>;
 - @param - 描述函数参数
 - @returns - 描述函数返回值
 - @template - 描述泛型
-- @example - 示例代码
 - @event - 事件组
 - @throws - 抛出错误
+- @example - 示例代码
 
 **特殊标记**
 
@@ -175,13 +186,18 @@ function readAsync(): Promise<string>;
 - @shallow - 浅层响应式对象
 - @val - 响应式值
 - @decorator - 装饰器
+- @inheritDoc - 使用继承符号的文档。
 
 **文档级标记**
 
 - @module identifier - 模块级别文档，后跟标识符用于推荐导入别名，详情可查看：[ESP SPEC](./esp.md)。
+- @modulePath path - 指定模块子路径。
+- @moduleTag tag - 指定模块中符号的默认标签。
+- @tag tag - 指定符号的标签。
 - @link - 用于且仅用于链接到其它代码符号，其余网址、文件链接等使用 Markdown 链接格式。
-- @group 用于在文档网站中分类展示。
-- @groupDescription 用于在文档网站中显示分类的注释。
+- @group - 用于在文档网站中分类展示。
+- @groupDescription - 用于在文档网站中显示分类的注释。
+- @see - 提供更多相关的信息。
 
 ## 错误与日志
 

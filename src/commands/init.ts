@@ -9,11 +9,7 @@ import {
 import cliPackageJson from "../../package.json" with { type: "json" };
 import { cli } from "../cli.js";
 import { resolveConfig } from "../config.js";
-
-const configPath = new URL(
-    "../../assets/simple-git-hooks.json",
-    import.meta.url,
-).pathname;
+import { simpleGitHooksConfigPath } from "../shared.js";
 
 const simpleGitHooksConfig = {
     "pre-commit": "{PM} exec utc lint --staged",
@@ -144,8 +140,8 @@ async function installGitHooks(projectPath: string) {
         2,
     );
 
-    await writeFile(configPath, configContent);
-    await setHooksFromConfig(projectPath, ["", "", configPath]);
+    await writeFile(simpleGitHooksConfigPath, configContent);
+    await setHooksFromConfig(projectPath, ["", "", simpleGitHooksConfigPath]);
     console.log("Successfully set all git hooks.");
 }
 
