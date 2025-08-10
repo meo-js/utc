@@ -1,11 +1,11 @@
-declare module "simple-git-hooks/simple-git-hooks.js" {
+declare module 'simple-git-hooks/simple-git-hooks.js' {
     /**
      * Check if simple-git-hooks is in dependencies
      * @param projectRootPath - Path to the project root
      * @returns Boolean indicating if simple-git-hooks is found in dependencies
      */
     export function checkSimpleGitHooksInDependencies(
-        projectRootPath: string
+        projectRootPath: string,
     ): boolean;
 
     /**
@@ -15,7 +15,7 @@ declare module "simple-git-hooks/simple-git-hooks.js" {
      */
     export function setHooksFromConfig(
         projectRootPath?: string,
-        argv?: string[]
+        argv?: string[],
     ): Promise<void>;
 
     /**
@@ -24,7 +24,7 @@ declare module "simple-git-hooks/simple-git-hooks.js" {
      * @returns Project root path or undefined
      */
     export function getProjectRootDirectoryFromNodeModules(
-        projectPath: string
+        projectPath: string,
     ): string | undefined;
 
     /**

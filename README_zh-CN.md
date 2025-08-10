@@ -31,8 +31,10 @@ npm i @meojs/utc
 
 ## 贡献
 
-- 执行 `npm run build` 构建项目。
-- 执行 `npm run publish:version` 构建并推送新版本。
+安装 Bun.js，它将作为开发运行时。
+
+- 执行 `pnpm run build` 构建项目。
+- 执行 `pnpm run publish:version` 构建并推送新版本。
 
 ## 许可证
 

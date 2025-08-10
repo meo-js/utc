@@ -31,8 +31,10 @@ npm i @meojs/utc
 
 ## Contributing
 
-- Run `npm run build` to build the project.
-- Run `npm run publish:version` to build and push a new version.
+Install Bun.js, it will serve as the development runtime.
+
+- Run `pnpm run build` to build the project.
+- Run `pnpm run publish:version` to build and push a new version.
 
 ## License
 

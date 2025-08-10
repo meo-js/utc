@@ -4,21 +4,21 @@
 
 ### 代码符号
 
-| 类型 | 命名 | 示范 |
-|------|-----|------|
-| 类/接口 | PascalCase | `class UserManager` |
-| 类型 | PascalCase | `type EventHandler` |
-| 枚举 | PascalCase | `enum StatusCode` |
-| 枚举成员 | PascalCase | `enum Color { Red, Green, Blue }` |
-| 命名空间 | camelCase | `namespace dataUtils` |
-| 属性/变量 | camelCase | `let dateTime` |
-| 方法/函数 | camelCase | `function getValue` |
-| 常量 | CONSTANT_CASE | `const DEBUG` |
+| 类型      | 命名          | 示范                              |
+| --------- | ------------- | --------------------------------- |
+| 类/接口   | PascalCase    | `class UserManager`               |
+| 类型      | PascalCase    | `type EventHandler`               |
+| 枚举      | PascalCase    | `enum StatusCode`                 |
+| 枚举成员  | PascalCase    | `enum Color { Red, Green, Blue }` |
+| 命名空间  | camelCase     | `namespace dataUtils`             |
+| 属性/变量 | camelCase     | `let dateTime`                    |
+| 方法/函数 | camelCase     | `function getValue`               |
+| 常量      | CONSTANT_CASE | `const DEBUG`                     |
 
 ### 文件系统
 
-| 类型 | 命名 | 示范 |
-|------|-----|------|
+| 类型 | 命名       | 示范           |
+| ---- | ---------- | -------------- |
 | 目录 | kebab-case | `daily-system` |
 | 文件 | kebab-case | `home-view.ts` |
 
@@ -28,14 +28,14 @@
 
 当符号有相似的作用时，统一命名方式：
 
-- `XXXOptions` —— 选项对象。
-- `XXXRecord` —— 简单、扁平、不可变的对象，通常代表一个完整、独立的数据结构。
+- `XXXOptions` - 选项对象。
+- `XXXRecord` - 简单、扁平、不可变的对象，通常代表一个完整、独立的数据结构。
 
 当函数有相似的作用时，统一以一致的前缀命名：
 
-- `use` —— React Hooks 函数。
-- `acquire` —— 函数返回的是 `Disposable` 对象。
-- `when` —— 函数返回的是 `Observable` 对象。
+- `use` - React Hooks 函数。
+- `acquire` - 函数返回的是 `Disposable` 对象。
+- `when` - 函数返回的是 `Observable` 对象。
 
 示例：
 
@@ -47,9 +47,9 @@ function when(): Observable;
 
 当函数有相似的作用时，统一以一致的后缀命名：
 
-- `sync` —— 当同名函数是异步的，用于表示作用相同的同步版本函数。
-- `async` —— 当同名函数是同步的，用于表示作用相同的异步版本函数。
-- `into` —— 当同名函数是返回一个新对象时，用于表示作用相同但将输出到现有对象的函数。
+- `sync` - 当同名函数是异步的，用于表示作用相同的同步版本函数。
+- `async` - 当同名函数是同步的，用于表示作用相同的异步版本函数。
+- `into` - 当同名函数是返回一个新对象时，用于表示作用相同但将输出到现有对象的函数。
 
 示例：
 
@@ -66,15 +66,14 @@ function readAsync(): Promise<string>;
 #### 常见误区
 
 - 禁止增加前/后缀以表明符号的类型：
+  - 接口名称不要总是以 `I` 开头。
 
-    - 接口名称不要总是以 `I` 开头。
+    > 一个常见的例外是需要与同名类进行区分。
 
-        > 一个常见的例外是需要与同名类进行区分。
+  - 变量名称不要以作用域、类型缩写开头，例如 `mTime`、`gUuid`、`iTime`、`sUuid`。
+  - 私有符号不要总是以 `_` 开头。
 
-    - 变量名称不要以作用域、类型缩写开头，例如 `mTime`、`gUuid`、`iTime`、`sUuid`。
-    - 私有符号不要总是以 `_` 开头。
-
-        > 一个常见的例外是该符号是同名符号的内部实现。
+    > 一个常见的例外是该符号是同名符号的内部实现。
 
 ## 符号顺序
 
@@ -136,27 +135,27 @@ function readAsync(): Promise<string>;
 - 使用 JSDoc 与 Markdown 格式编写。
 - 每段注释第一行应该是简要描述该代码符号作用的摘要。
 
-```js
+````js
 /**
  * This is a book.
- * 
+ *
  * This book is intended for referencing current coding standards
  * to better improve code maintainability.
- * 
+ *
  * @param arg1 This is description.
  * @returns This is description.
- * 
+ *
  * @example Description
  * ```ts
  * call("hello");
  * ```
- * 
+ *
  * @internal
  * @experimental
  * @since 1.0.0
  * @see [Github](https://github.com)
  */
-```
+````
 
 ### 标签参考
 
@@ -211,47 +210,45 @@ function readAsync(): Promise<string>;
 
 - 每条错误消息的第一行应简明扼要地说明问题所在。
 - 如果问题的原因很明确，则尽量同时说明预期的结果和实际的结果，并使用 "must"、"don't"：
-
-    - \`n\` must be a numeric vector, not a character vector.
-    - \`n\` must have length 1, not length 2.
-    - Don't put the recycled object back into the pool again.
+  - \`n\` must be a numeric vector, not a character vector.
+  - \`n\` must have length 1, not length 2.
+  - Don't put the recycled object back into the pool again.
 
 - 如果问题原因并不明确，则使用 "can't"：
-
-    - Can't find column \`b\` in \`.data\`.
-    - Can't coerce \`.x\` to a vector.
+  - Can't find column \`b\` in \`.data\`.
+  - Can't coerce \`.x\` to a vector.
 
 - 可换行并以 `-` 和空格开头增加子说明，以添加与错误相关的信息或建议，需要注意首字母不要大写，并且以 `tag:` 开头：
 
-    ```
-    Can't find file "./a.png".
-    - absolute path: "/home/assets/a.png"
-    ```
+  ```
+  Can't find file "./a.png".
+  - absolute path: "/home/assets/a.png"
+  ```
 
-    如果子说明有子项，则用 4 个空格缩进：
+  如果子说明有子项，则用 4 个空格缩进：
 
-    ```
-    Can't find file "./a.png".
-    - params:
-        absolute path: "/home/assets/a.png"
-        options: { deep: 1 }
-    ```
+  ```
+  Can't find file "./a.png".
+  - params:
+      absolute path: "/home/assets/a.png"
+      options: { deep: 1 }
+  ```
 
-    `tag` 标签可以是任何字符，但提供解决错误的建议需统一使用标签 `help`：
+  `tag` 标签可以是任何字符，但提供解决错误的建议需统一使用标签 `help`：
 
-    ```
-    Can't find file "./a.png".
-    - help: try to use the `ignoreCase` option.
-    ```
+  ```
+  Can't find file "./a.png".
+  - help: try to use the `ignoreCase` option.
+  ```
 
-    多个建议使用序号列表逐个列出：
+  多个建议使用序号列表逐个列出：
 
-    ```
-    Can't find file "./a.png".
-    - help:
-        1. confirm the filename is correct.
-        2. try to use the `ignoreCase` option.
-    ```
+  ```
+  Can't find file "./a.png".
+  - help:
+      1. confirm the filename is correct.
+      2. try to use the `ignoreCase` option.
+  ```
 
 ## 泛型
 
@@ -263,8 +260,8 @@ function readAsync(): Promise<string>;
 
 ```ts
 export type Class<
-    T extends object = object,
-    Arguments extends readonly unknown[] = never,
+  T extends object = object,
+  Arguments extends readonly unknown[] = never,
 > = new (...args: Arguments) => T;
 ```
 
@@ -276,19 +273,21 @@ export type Class<
 
 ```ts
 export function test(v: Class) {
-    const instance = new v();
-    //               ~~~~~~~~ > Error: ts(2345)
+  const instance = new v();
+  //               ~~~~~~~~ > Error: ts(2345)
 }
 
-test(class { 
+test(
+  class {
     constructor(a: number) {
-        console.log("hello");
+      console.log('hello');
     }
 
     method() {
-        console.log("world");
+      console.log('world');
     }
-});
+  },
+);
 ```
 
 可以看到 `test` 函数可以接收任何 `Class`，符合 “任何” 的语义，但也无法直接调用（因为不知道构造函数需要什么样的参数），符合 “未知” 的语义。

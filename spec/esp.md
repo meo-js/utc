@@ -28,10 +28,11 @@
 一个公开模块可以像这样声明：
 
 `src/index.js`
+
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  */
@@ -47,6 +48,7 @@ export class Example { ... }
 默认情况下，值仅在模块内可见。
 
 `index.js`
+
 ```js
 const value = 1;
 ```
@@ -54,6 +56,7 @@ const value = 1;
 使用 `export` 可以导出值，即将值完全公开，可通过值所在的模块访问到该值。
 
 `index.js`
+
 ```js
 export const value = 1;
 ```
@@ -61,6 +64,7 @@ export const value = 1;
 如果不想值被其它包访问，可以添加 `@internal` 标记，则该值被声明为私有值，仅在包范围内公开。
 
 `index.js`
+
 ```js
 /**
  * @internal
@@ -81,29 +85,32 @@ export const value = 1;
 例如以下 `Npm Package` 的结构：
 
 `package.json`
+
 ```json
 {
-    "exports": "src/index.js"
+  "exports": "src/index.js"
 }
 ```
 
 `src/index.js`
+
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  */
 
-export * from "./config.js";
-export * from "./utils.js";
+export * from './config.js';
+export * from './utils.js';
 ```
 
 `src/utils.js`
+
 ```js
-export * from "./math.js";
-export * from "./pool.js";
+export * from './math.js';
+export * from './pool.js';
 ```
 
 对应的包结构为：
@@ -154,11 +161,11 @@ package/
 
 ```json
 {
-    "exports": {
-        ".": "src/index.js",
-        "./utils": "src/utils.js",
-        "./tools/math": "src/tools/math.js"
-    }
+  "exports": {
+    ".": "src/index.js",
+    "./utils": "src/utils.js",
+    "./tools/math": "src/tools/math.js"
+  }
 }
 ```
 
@@ -174,10 +181,11 @@ package/
 若需要定义为其它路径，则需添加 `@modulePath` 标记，例如：
 
 `src/tools/math.js`
+
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  * @modulePath ./math
@@ -298,7 +306,7 @@ graph TD
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  * @moduleTag default
@@ -310,7 +318,7 @@ graph TD
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  * @moduleTag default
@@ -327,7 +335,7 @@ export const value = 1;
 ```js
 /**
  * This is a useful demonstration module.
- * 
+ *
  * @public
  * @module
  * @moduleTag utils

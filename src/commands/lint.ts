@@ -1,35 +1,35 @@
-import format from "@commitlint/format";
-import lint from "@commitlint/lint";
-import load from "@commitlint/load";
-import { execSync } from "child_process";
-import { ESLint } from "eslint";
-import { readFile } from "fs/promises";
-import { glob } from "glob";
-import * as prettier from "prettier";
-import { exit } from "process";
-import { cli } from "../cli.js";
-import { resolveConfig, type ResolvedConfig } from "../config.js";
+import format from '@commitlint/format';
+import lint from '@commitlint/lint';
+import load from '@commitlint/load';
+import { execSync } from 'child_process';
+import { ESLint } from 'eslint';
+import { readFile } from 'fs/promises';
+import { glob } from 'glob';
+import * as prettier from 'prettier';
+import { exit } from 'process';
+import { cli } from '../cli.js';
+import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
 
 cli.command(
-    "lint",
-    "Check if the code conforms to the team specs.",
+    'lint',
+    'Check if the code conforms to the team specs.',
     argv => {
         return argv
-            .option("staged", {
-                describe: "Check staged files only.",
-                type: "boolean",
+            .option('staged', {
+                describe: 'Check staged files only.',
+                type: 'boolean',
                 default: false,
             })
-            .option("message", {
-                alias: "m",
-                describe: "Check the incoming commit message.",
-                type: "string",
+            .option('message', {
+                alias: 'm',
+                describe: 'Check the incoming commit message.',
+                type: 'string',
                 requiresArg: true,
             });
     },
     async args => {
         console.log(`Linting...`);
-        const config = await resolveConfig(args);
+        const config = await resolveConfigFromArgv(args);
 
         if (args.message != null) {
             await lintCommitMessage(args.message);
@@ -40,7 +40,7 @@ cli.command(
             const stagedFiles = getStagedFiles();
 
             if (stagedFiles.length === 0) {
-                console.log("No staged files found.");
+                console.log('No staged files found.');
                 return;
             }
 
@@ -50,7 +50,7 @@ cli.command(
                 process.exit(1);
             }
 
-            console.log("All staged files passed linting checks.");
+            console.log('All staged files passed linting checks.');
         } else {
             const passed = await lintJsFiles([], config, false);
             if (!passed) {
@@ -58,22 +58,22 @@ cli.command(
             }
         }
 
-        console.log("All files passed linting checks.");
+        console.log('All files passed linting checks.');
     },
 );
 
 function getStagedFiles(): string[] {
     try {
-        const stagedFiles = execSync("git diff --cached --name-only", {
-            encoding: "utf8",
+        const stagedFiles = execSync('git diff --cached --name-only', {
+            encoding: 'utf8',
         })
             .trim()
-            .split("\n")
+            .split('\n')
             .filter(file => file.length > 0);
 
         return stagedFiles;
     } catch (error) {
-        console.error("Error getting staged files:", (error as Error).message);
+        console.error('Error getting staged files:', (error as Error).message);
         process.exit(1);
     }
 }
@@ -91,7 +91,7 @@ async function lintJsFiles(
         );
 
         if (targetFiles.length === 0) {
-            console.log("No JavaScript files to lint.");
+            console.log('No JavaScript files to lint.');
             return true;
         }
 
@@ -118,7 +118,7 @@ async function filterJsFiles(
 ): Promise<string[]> {
     const allSourceFiles = await getSourceFiles(sourcePatterns, projectPath);
     const sourceFilesSet = new Set(
-        allSourceFiles.map(file => file.replace(`${projectPath}/`, "")),
+        allSourceFiles.map(file => file.replace(`${projectPath}/`, '')),
     );
 
     return files.filter(file => sourceFilesSet.has(file));
@@ -152,7 +152,7 @@ async function lintWithESLint(
         });
 
         const results = await eslint.lintFiles(patterns);
-        const formatter = await eslint.loadFormatter("stylish");
+        const formatter = await eslint.loadFormatter('stylish');
         const resultText = formatter.format(results);
 
         if (resultText) {
@@ -162,7 +162,7 @@ async function lintWithESLint(
         const hasErrors = results.some(result => result.errorCount > 0);
         return !hasErrors;
     } catch (error) {
-        console.error("ESLint check failed:", (error as Error).message);
+        console.error('ESLint check failed:', (error as Error).message);
         return false;
     }
 }
@@ -177,7 +177,7 @@ async function lintWithPrettier(files: string[]): Promise<boolean> {
                 return true;
             }
 
-            const input = await readFile(file, "utf8");
+            const input = await readFile(file, 'utf8');
             const formatted = await prettier.check(input, {
                 ...options,
                 filepath: file,
@@ -194,7 +194,7 @@ async function lintWithPrettier(files: string[]): Promise<boolean> {
         const results = await Promise.all(files.map(checkFile));
         return results.every(result => result);
     } catch (error) {
-        console.error("Prettier check failed:", (error as Error).message);
+        console.error('Prettier check failed:', (error as Error).message);
         return false;
     }
 }
@@ -209,13 +209,13 @@ async function lintWithPrettierByGlob(
 
 async function lintCommitMessage(message: string) {
     const config = await load({
-        "extends": ["@commitlint/config-conventional"],
+        'extends': ['@commitlint/config-conventional'],
     });
     const result = await lint(message, config.rules, config);
     const output = format(
         { results: [result] },
         {
-            signs: ["[hint]", "[warning]", "[error]"],
+            signs: ['[hint]', '[warning]', '[error]'],
             color: true,
             verbose: false,
         },

@@ -1,27 +1,39 @@
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
-import { resolveConfig } from "./config.js";
-import { scriptExt } from "./shared.js";
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import { resolveConfigFromArgv } from './config.js';
+import { scriptExt } from './shared.js';
 
 export type Argv = typeof argv;
 
 export const cli = yargs(hideBin(process.argv))
-    .scriptName("utc")
+    .scriptName('utc')
     // 全局选项
-    .option("project", {
-        alias: "p",
-        describe: "Project path.",
-        type: "string",
-        defaultDescription: "Current working directory",
+    .option('project', {
+        alias: 'p',
+        describe: 'Project path.',
+        type: 'string',
+        defaultDescription: 'Current working directory',
         requiresArg: true,
     })
-    .option("js.source", {
-        describe: "JavaScript Source code paths.",
-        type: "string",
+    .option('js.source', {
+        describe: 'JavaScript Source code paths.',
+        type: 'string',
         defaultDescription: `src/**/*.${scriptExt}`,
     })
+    .option('js.tailwindcss', {
+        describe: 'Use Tailwind CSS.',
+        type: 'boolean',
+        defaultDescription: 'false',
+    })
+    .option('js.jsdoc', {
+        describe: 'JSDoc check level for ESLint (none|loose|strict).',
+        type: 'string',
+        choices: ['none', 'loose', 'strict'] as const,
+        defaultDescription: 'loose',
+        requiresArg: true,
+    })
     .command(
-        "*",
+        '*',
         false,
         () => {},
         async args => {
@@ -29,23 +41,23 @@ export const cli = yargs(hideBin(process.argv))
         },
     )
     // 配置
-    .alias("v", "version")
-    .alias("h", "help")
+    .alias('v', 'version')
+    .alias('h', 'help')
     // NOTE: yargs 不能很好地处理点号（.）分隔的选项
-    .parserConfiguration({ "dot-notation": false })
+    .parserConfiguration({ 'dot-notation': false })
     .detectLocale(false)
-    .demandCommand(1, "You need at least one command before moving on.")
+    .demandCommand(1, 'You need at least one command before moving on.')
     .strict()
     .wrap(yargs().terminalWidth())
     .recommendCommands();
 
 // 子命令
-await import("./commands/init.js");
-await import("./commands/lint.js");
+await import('./commands/init.js');
+await import('./commands/lint.js');
 
 const argv = await cli.parseAsync();
 
 export async function printDebugInfo(args: Argv) {
-    console.log("Cmd Args:", args);
-    console.log("Config:", await resolveConfig(args));
+    console.log('Cmd Args:', args);
+    console.log('Config:', await resolveConfigFromArgv(args));
 }

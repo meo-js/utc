@@ -1,14 +1,26 @@
 import { eslint, prettier } from '@meojs/cfgs';
-import type { Config } from './config.js';
+import { resolveConfig, type Config } from './config.js';
 
-export function config(type: 'prettier'): ReturnType<typeof prettier.config>;
-export function config(type: 'eslint'): ReturnType<typeof eslint.config>;
-export function config(opts?: Config): Config;
-export function config(arg1?: 'prettier' | 'eslint' | Config): unknown {
+export async function config(
+    type: 'prettier',
+): Promise<ReturnType<typeof prettier.config>>;
+export async function config(
+    type: 'eslint',
+): Promise<ReturnType<typeof eslint.config>>;
+export async function config(opts?: Config): Promise<Config>;
+export async function config(
+    arg1?: 'prettier' | 'eslint' | Config,
+): Promise<unknown> {
     if (arg1 === 'prettier') {
-        return prettier.config();
+        const {
+            js: { tailwindcss },
+        } = await resolveConfig();
+        return prettier.config({ tailwindcss });
     } else if (arg1 === 'eslint') {
-        return eslint.config();
+        const {
+            js: { jsdoc },
+        } = await resolveConfig();
+        return eslint.config({ jsdoc });
     } else {
         return arg1;
     }

@@ -1,3 +1,3 @@
-import { prettier } from "@meojs/cfgs";
+import { prettier } from '@meojs/cfgs';
 
 export default prettier.config();
