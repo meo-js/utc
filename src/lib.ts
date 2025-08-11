@@ -1,4 +1,4 @@
-import { eslint, prettier } from '@meojs/cfgs';
+import { eslint, prettier, stylelint } from '@meojs/cfgs';
 import { resolveConfig, type Config } from './config.js';
 
 export async function config(
@@ -7,9 +7,12 @@ export async function config(
 export async function config(
     type: 'eslint',
 ): Promise<ReturnType<typeof eslint.config>>;
+export async function config(
+    type: 'stylelint',
+): Promise<ReturnType<typeof stylelint.config>>;
 export async function config(opts?: Config): Promise<Config>;
 export async function config(
-    arg1?: 'prettier' | 'eslint' | Config,
+    arg1?: 'prettier' | 'eslint' | 'stylelint' | Config,
 ): Promise<unknown> {
     if (arg1 === 'prettier') {
         const {
@@ -21,6 +24,8 @@ export async function config(
             web: { jsdoc },
         } = await resolveConfig();
         return eslint.config({ jsdoc });
+    } else if (arg1 === 'stylelint') {
+        return stylelint.config();
     } else {
         return arg1;
     }
