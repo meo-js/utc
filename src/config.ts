@@ -1,7 +1,9 @@
+import { glob } from '@meojs/cfgs';
 import { loadConfig, type ResolvableConfig } from 'c12';
 import { cwd } from 'process';
 import type { Argv } from './cli.js';
-import { scriptExt } from './shared.js';
+
+const { cssExt, htmlExt, scriptExt, vueExt, testSuffix } = glob;
 
 export const CFG_NAME = 'utc';
 
@@ -14,20 +16,34 @@ export interface Config {
     project?: string;
 
     /**
-     * JavaScript configuration.
+     * JavaScript、HTML、CSS configuration.
      */
-    js?: JsConfig;
+    web?: WebConfig;
 }
 
-export interface JsConfig {
+export interface WebConfig {
     /**
      * Source code paths.
      *
      * Support files, directorys, Glob patterns.
      *
-     * @default "src/**\/*.{@link scriptExt}"
+     * 如果传入目录，将规范化成带有扩展名的 Glob pattern（`dir/**\/*.<ext>`）：
+     * - `JavaScript` - {@link scriptExt}
+     * - `CSS` - {@link cssExt}
+     * - `HTML` - {@link htmlExt}
+     * - `Vue` - {@link vueExt}
+     * - `Test` - {@link testSuffix}
+     *
+     * @default "src"
      */
     source?: string[];
+
+    /**
+     * Use CSS.
+     *
+     * @default false
+     */
+    css?: boolean;
 
     /**
      * Use Tailwind CSS.
@@ -50,8 +66,9 @@ export interface JsConfig {
 
 export type ResolvedConfig = Config & {
     project: string;
-    js: JsConfig & {
+    web: WebConfig & {
         source: string[];
+        css: boolean;
         tailwindcss: boolean;
         jsdoc: 'none' | 'loose' | 'strict';
     };
@@ -73,8 +90,9 @@ export async function resolveConfig(
         overrides: overrides,
         defaults: {
             project: cwd(),
-            js: {
-                source: [`src/**/*.${scriptExt}`],
+            web: {
+                source: [`src`],
+                css: false,
                 tailwindcss: false,
                 jsdoc: 'loose',
             },
@@ -82,6 +100,20 @@ export async function resolveConfig(
     });
 
     return config as ResolvedConfig;
+}
+
+export async function hasConfig(project: string = cwd()) {
+    try {
+        await loadConfig({
+            cwd: project,
+            name: CFG_NAME,
+            packageJson: true,
+            configFileRequired: true,
+        });
+        return true;
+    } catch (error) {
+        return false;
+    }
 }
 
 function parseArgvToConfig(argv: Argv): Config {

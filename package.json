@@ -45,13 +45,17 @@
   },
   "peerDependencies": {
     "eslint": "^9.33.0",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "stylelint": "^16.23.1"
   },
   "peerDependenciesMeta": {
     "eslint": {
       "optional": true
     },
     "prettier": {
+      "optional": true
+    },
+    "stylelint": {
       "optional": true
     }
   },
@@ -61,8 +65,9 @@
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
     "@inquirer/prompts": "^7.8.1",
-    "@meojs/cfgs": "^2.0.30",
+    "@meojs/cfgs": "^2.0.32",
     "@meojs/pkg-utils": "^1.0.3",
+    "braces": "^3.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
     "nano-spawn": "^1.0.2",
@@ -70,6 +75,7 @@
     "yargs": "^18.0.0"
   },
   "devDependencies": {
+    "@types/braces": "^3.0.5",
     "@types/node": "~20.19.0",
     "@types/yargs": "^17.0.33",
     "prettier-plugin-organize-imports": "^4.2.0"

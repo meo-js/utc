@@ -1,1 +1,4 @@
-{}
+{
+  "pre-commit": "pnpm exec utc lint --staged",
+  "commit-msg": "pnpm exec utc lint -m $1"
+}

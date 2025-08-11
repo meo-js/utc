@@ -9,7 +9,7 @@ import {
 } from 'simple-git-hooks/simple-git-hooks.js';
 import cliPackageJson from '../../package.json' with { type: 'json' };
 import { cli } from '../cli.js';
-import { resolveConfigFromArgv } from '../config.js';
+import { hasConfig, resolveConfigFromArgv } from '../config.js';
 import { simpleGitHooksConfigPath } from '../shared.js';
 
 const simpleGitHooksConfig = {
@@ -23,51 +23,69 @@ const oldPeerDeps = { 'eslint': '', 'prettier': '', '@meojs/cfgs': '' };
 cli.command(
     'init',
     'Initialize project.',
-    () => {},
+    argv =>
+        argv.option('interactive', {
+            alias: 'i',
+            describe: 'Run in interactive mode.',
+            type: 'boolean',
+            default: false,
+        }),
     async args => {
         const config = await resolveConfigFromArgv(args);
+        const selected = [] as string[];
 
-        const selected = await checkbox({
-            message: 'Select features to initialize:',
-            choices: [
-                {
-                    name: 'Git Hooks',
-                    value: 'git-hooks',
-                    checked: true,
-                },
-                {
-                    name: 'JavaScript',
-                    value: 'javascript',
-                    checked: false,
-                },
-                {
-                    name: 'Tailwind CSS',
-                    value: 'tailwind',
-                    checked: false,
-                },
-                {
-                    name: 'Prepare Script',
-                    value: 'prepare-script',
-                    checked: true,
-                },
-            ],
-        });
-
-        if (selected.includes('git-hooks')) {
-            await installGitHooks(config.project);
+        if (args.interactive || !(await hasConfig(args.project))) {
+            selected.push(
+                ...(await checkbox({
+                    message: 'Select features to initialize:',
+                    choices: [
+                        {
+                            name: 'Git Hooks',
+                            value: 'git-hooks',
+                            checked: true,
+                        },
+                        {
+                            name: 'JavaScript',
+                            value: 'javascript',
+                            checked: false,
+                        },
+                        {
+                            name: 'CSS',
+                            value: 'css',
+                            checked: false,
+                        },
+                        {
+                            name: 'Tailwind CSS',
+                            value: 'tailwind',
+                            checked: false,
+                        },
+                        {
+                            name: 'Prepare Script',
+                            value: 'prepare-script',
+                            checked: true,
+                        },
+                    ],
+                })),
+            );
+        } else {
+            selected.push('git-hooks', 'javascript', 'prepare-script');
+            if (config.web.css) {
+                selected.push('css');
+            }
+            if (config.web.tailwindcss) {
+                selected.push('tailwind');
+            }
         }
 
-        if (selected.includes('javascript')) {
-            await installJavascriptDeps(config.project);
-        }
+        const actions: Record<string, (project: string) => Promise<void>> = {
+            'git-hooks': installGitHooks,
+            'javascript': installJavascriptDeps,
+            'css': installCssDeps,
+            'tailwind': installTailwindDeps,
+            'prepare-script': installPrepareScript,
+        };
 
-        if (selected.includes('tailwind')) {
-            await installTailwindDeps(config.project);
-        }
-
-        if (selected.includes('prepare-script')) {
-            await installPrepareScript(config.project);
-        }
+        await runSelected(selected, config.project, actions);
     },
 );
 
@@ -99,17 +117,13 @@ cli.command(
             ],
         });
 
-        if (selected.includes('git-hooks')) {
-            await uninstallGitHooks(config.project);
-        }
+        const actions: Record<string, (project: string) => Promise<void>> = {
+            'git-hooks': uninstallGitHooks,
+            'remove-deps': removeDependencies,
+            'remove-prepare-script': uninstallPrepareScript,
+        };
 
-        if (selected.includes('remove-deps')) {
-            await removeDependencies(config.project);
-        }
-
-        if (selected.includes('remove-prepare-script')) {
-            await uninstallPrepareScript(config.project);
-        }
+        await runSelected(selected, config.project, actions);
     },
 );
 
@@ -128,17 +142,15 @@ cli.command(
     'Uninstall Git hook scripts.',
     () => {},
     async args => {
-        console.log('Uninstalling git hooks...');
         const config = await resolveConfigFromArgv(args);
-        await removeHooks(config.project);
-        console.log('Successfully removed all git hooks.');
+        await uninstallGitHooks(config.project);
     },
 ).hide('uninstall-git-hook');
 
 async function installGitHooks(projectPath: string) {
     console.log('Installing git hooks...');
 
-    const pm = (await detectPackageManager(projectPath)).cmd;
+    const pm = await getPackageManagerCmd(projectPath);
     const configContent = JSON.stringify(
         Object.fromEntries(
             Object.entries(simpleGitHooksConfig).map(([key, value]) => [
@@ -176,7 +188,6 @@ async function removeDependencies(projectPath: string) {
                 oldPeerDeps,
                 cliPackageJson.peerDependencies || {},
                 cfgsPackageJson.peerDependencies || {},
-                { 'prettier-plugin-tailwindcss': '' },
             );
             const devDeps = json.devDependencies;
 
@@ -190,14 +201,7 @@ async function removeDependencies(projectPath: string) {
         });
 
         console.log('Removed devDependencies used by utc.');
-        console.log('Running install...');
-
-        const pm = (await detectPackageManager(projectPath)).cmd;
-
-        await spawn(pm, ['install'], {
-            cwd: projectPath,
-            stdio: 'inherit',
-        });
+        await runPmInstall(projectPath);
 
         console.log('Dependencies removed successfully!');
     } catch (error) {
@@ -207,75 +211,79 @@ async function removeDependencies(projectPath: string) {
 }
 
 async function installJavascriptDeps(projectPath: string) {
-    console.log('Installing JavaScript dependencies...');
+    return installPeerDepsByFilter(
+        projectPath,
+        'JavaScript',
+        name => !isCssDep(name) && !isTailwindDep(name),
+    );
+}
 
-    try {
-        const cliPeerDeps = cliPackageJson.peerDependencies || {};
-        const cfgsPeerDeps = cfgsPackageJson.peerDependencies || {};
-
-        await writePackageJson(projectPath, json => {
-            if (!json.devDependencies) json.devDependencies = {};
-            const devDeps = json.devDependencies;
-
-            // 1) Add CLI peer deps
-            Object.keys(cliPeerDeps).forEach(depName => {
-                devDeps[depName] = cliPeerDeps[depName as never];
-            });
-
-            // 2) Add @meojs/cfgs peer deps, excluding prettier-plugin-tailwindcss
-            Object.keys(cfgsPeerDeps).forEach(depName => {
-                if (depName === 'prettier-plugin-tailwindcss') return;
-                devDeps[depName] = cfgsPeerDeps[depName as never];
-            });
-
-            return json;
-        });
-
-        console.log('Updated devDependencies for JavaScript stack');
-        console.log('Running install...');
-
-        const pm = (await detectPackageManager(projectPath)).cmd;
-        await spawn(pm, ['install'], { cwd: projectPath, stdio: 'inherit' });
-
-        console.log('JavaScript dependencies installed successfully!');
-    } catch (error) {
-        console.error('Error installing JavaScript dependencies:', error);
-        throw error;
-    }
+async function installCssDeps(projectPath: string) {
+    return installPeerDepsByFilter(projectPath, 'CSS', isCssDep);
 }
 
 async function installTailwindDeps(projectPath: string) {
-    console.log('Installing Tailwind CSS dependencies...');
+    return installPeerDepsByFilter(projectPath, 'Tailwind CSS', isTailwindDep);
+}
+
+const isCssDep = (name: string) =>
+    name.startsWith('stylelint') || name.startsWith('postcss');
+
+const isTailwindDep = (name: string) => name.includes('tailwindcss');
+
+function collectPeerDepsByFilter(
+    include: (name: string) => boolean,
+): Record<string, string> {
+    const cliPeerDeps = cliPackageJson.peerDependencies || {};
+    const cfgsPeerDeps = cfgsPackageJson.peerDependencies || {};
+
+    const result: Record<string, string> = {};
+
+    Object.keys(cliPeerDeps)
+        .filter(include)
+        .forEach(name => {
+            result[name] = cliPeerDeps[name as never];
+        });
+
+    Object.keys(cfgsPeerDeps)
+        .filter(include)
+        .forEach(name => {
+            result[name] = cfgsPeerDeps[name as never];
+        });
+
+    return result;
+}
+
+async function installPeerDepsByFilter(
+    projectPath: string,
+    label: string,
+    include: (name: string) => boolean,
+) {
+    console.log(`Installing ${label} dependencies...`);
 
     try {
-        const cliPeerDeps = cliPackageJson.peerDependencies || {};
-        const cfgsPeerDeps = cfgsPackageJson.peerDependencies || {};
+        const deps = collectPeerDepsByFilter(include);
 
-        const pluginName = 'prettier-plugin-tailwindcss';
-        const pluginVersion =
-            cfgsPeerDeps[pluginName] || cliPeerDeps[pluginName as never];
-
-        if (!pluginVersion) {
-            throw new Error(
-                'Could not determine version for prettier-plugin-tailwindcss.',
-            );
+        if (Object.keys(deps).length === 0) {
+            console.log(`No ${label} peer dependencies found to install.`);
+            return;
         }
 
         await writePackageJson(projectPath, json => {
             if (!json.devDependencies) json.devDependencies = {};
-            json.devDependencies[pluginName] = pluginVersion;
+            const devDeps = json.devDependencies;
+            for (const [name, version] of Object.entries(deps)) {
+                devDeps[name] = version;
+            }
             return json;
         });
 
-        console.log('Updated devDependencies for Tailwind CSS.');
-        console.log('Running install...');
+        console.log(`Updated devDependencies for ${label}.`);
+        await runPmInstall(projectPath);
 
-        const pm = (await detectPackageManager(projectPath)).cmd;
-        await spawn(pm, ['install'], { cwd: projectPath, stdio: 'inherit' });
-
-        console.log('Tailwind CSS dependencies installed successfully!');
+        console.log(`${label} dependencies installed successfully!`);
     } catch (error) {
-        console.error('Error installing Tailwind CSS dependencies:', error);
+        console.error(`Error installing ${label} dependencies:`, error);
         throw error;
     }
 }
@@ -284,7 +292,7 @@ async function installPrepareScript(projectPath: string) {
     console.log('Installing prepare script...');
 
     try {
-        const pm = (await detectPackageManager(projectPath)).cmd;
+        const pm = await getPackageManagerCmd(projectPath);
         const prepareScript = `${pm} exec utc install-git-hook`;
 
         await writePackageJson(projectPath, json => {
@@ -325,5 +333,26 @@ async function uninstallPrepareScript(projectPath: string) {
     } catch (error) {
         console.error('Error uninstalling prepare script:', error);
         throw error;
+    }
+}
+
+async function getPackageManagerCmd(projectPath: string): Promise<string> {
+    return (await detectPackageManager(projectPath)).cmd;
+}
+
+async function runPmInstall(projectPath: string) {
+    console.log('Running install...');
+    const pm = await getPackageManagerCmd(projectPath);
+    await spawn(pm, ['install'], { cwd: projectPath, stdio: 'inherit' });
+}
+
+async function runSelected(
+    selected: string[],
+    project: string,
+    actionMap: Record<string, (project: string) => Promise<void>>,
+) {
+    for (const key of selected) {
+        const action = actionMap[key];
+        if (action) await action(project);
     }
 }

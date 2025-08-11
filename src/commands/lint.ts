@@ -1,14 +1,20 @@
 import format from '@commitlint/format';
 import lint from '@commitlint/lint';
 import load from '@commitlint/load';
+import { glob as globExt } from '@meojs/cfgs';
+import { expand } from 'braces';
 import { execSync } from 'child_process';
 import { ESLint } from 'eslint';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { glob } from 'glob';
+import { extname } from 'path';
 import * as prettier from 'prettier';
 import { exit } from 'process';
+import stylelint from 'stylelint';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
+
+const { cssExt, htmlExt, scriptExt, vueExt } = globExt;
 
 cli.command(
     'lint',
@@ -44,16 +50,22 @@ cli.command(
                 return;
             }
 
-            const passed = await lintJsFiles(stagedFiles, config, true);
+            const [jsPassed, stylePassed] = await Promise.all([
+                lintJsFiles(stagedFiles, config, true),
+                lintStyleFiles(stagedFiles, config, true),
+            ]);
 
-            if (!passed) {
+            if (!(jsPassed && stylePassed)) {
                 process.exit(1);
             }
 
             console.log('All staged files passed linting checks.');
         } else {
-            const passed = await lintJsFiles([], config, false);
-            if (!passed) {
+            const [jsPassed, stylePassed] = await Promise.all([
+                lintJsFiles([], config, false),
+                lintStyleFiles([], config, false),
+            ]);
+            if (!(jsPassed && stylePassed)) {
                 process.exit(1);
             }
         }
@@ -83,10 +95,13 @@ async function lintJsFiles(
     config: ResolvedConfig,
     isStaged: boolean,
 ): Promise<boolean> {
+    const exts = expand(scriptExt);
+
     if (isStaged) {
-        const targetFiles = await filterJsFiles(
+        const targetFiles = await filterFiles(
             stagedFiles,
-            config.js.source,
+            exts,
+            config.web.source,
             config.project,
         );
 
@@ -103,34 +118,78 @@ async function lintJsFiles(
         return eslintPassed && prettierPassed;
     } else {
         const [eslintPassed, prettierPassed] = await Promise.all([
-            lintWithESLint(config.js.source, config.project),
-            lintWithPrettierByGlob(config.js.source, config.project),
+            lintWithESLint(
+                await normalizeGlob(config.web.source, exts),
+                config.project,
+            ),
+            lintWithPrettier(
+                await resolveGlob(config.web.source, config.project, exts),
+            ),
         ]);
 
         return eslintPassed && prettierPassed;
     }
 }
 
-async function filterJsFiles(
+async function lintStyleFiles(
+    stagedFiles: string[],
+    config: ResolvedConfig,
+    isStaged: boolean,
+): Promise<boolean> {
+    if (!config.web.css) {
+        return true;
+    }
+
+    const exts = [cssExt, htmlExt, vueExt].flatMap(expand);
+
+    try {
+        if (isStaged) {
+            const targetFiles = await filterFiles(
+                stagedFiles,
+                exts,
+                config.web.source,
+                config.project,
+            );
+
+            if (targetFiles.length === 0) {
+                console.log('No style files to lint.');
+                return true;
+            }
+
+            return await lintWithStylelint(targetFiles, config.project);
+        } else {
+            return await lintWithStylelint(
+                await normalizeGlob(config.web.source, exts),
+                config.project,
+            );
+        }
+    } catch (error) {
+        console.error('Stylelint check failed:', (error as Error).message);
+        return false;
+    }
+}
+
+async function filterFiles(
     files: string[],
+    exts: string[],
     sourcePatterns: string[],
     projectPath: string,
 ): Promise<string[]> {
-    const allSourceFiles = await getSourceFiles(sourcePatterns, projectPath);
+    const allSourceFiles = await resolveGlob(sourcePatterns, projectPath, exts);
     const sourceFilesSet = new Set(
         allSourceFiles.map(file => file.replace(`${projectPath}/`, '')),
     );
-
     return files.filter(file => sourceFilesSet.has(file));
 }
 
-async function getSourceFiles(
-    sourcePatterns: string[],
+async function resolveGlob(
+    patterns: string[],
     projectPath: string,
+    exts: string[],
 ): Promise<string[]> {
     const allFiles: string[] = [];
 
-    for (const pattern of sourcePatterns) {
+    for (const pattern of await normalizeGlob(patterns, exts)) {
         const files = await glob(pattern, {
             cwd: projectPath,
             absolute: true,
@@ -140,6 +199,39 @@ async function getSourceFiles(
     }
 
     return [...new Set(allFiles)];
+}
+
+async function normalizeGlob(patterns: string[], exts: string[]) {
+    // 可能传入目录，且需确保只有特定类型的文件
+    const normalized: string[] = [];
+    for (const pattern of patterns) {
+        const stats = await stat(pattern);
+        if (stats.isDirectory()) {
+            normalized.push(`${pattern}/**/*.{${exts.join(',')}}`);
+        } else {
+            expand(pattern).forEach(p => {
+                const ext = extname(p).slice(1);
+                if (ext === '' && isGlobPattern(p)) {
+                    // 如果是 Glob pattern 且没有扩展名，则添加扩展名
+                    normalized.push(`${p}.{${exts.join(',')}}`);
+                }
+                if (exts.includes(ext)) {
+                    normalized.push(p);
+                }
+            });
+        }
+    }
+    return normalized;
+}
+
+function isGlobPattern(pattern: string): boolean {
+    // 以 ! 开头的否定模式
+    if (pattern.startsWith('!')) return true;
+
+    // 匹配未被反斜线转义的通配符：*, ?, [...], {...}, 以及 extglob：!(), +(), ?(), *(), @()
+    const globLikeRE =
+        /(^|[^\\])(?:[*?]|\[[^\]]+\]|\{[^}]+\}|[!@+?*]\([^)]*\))/;
+    return globLikeRE.test(pattern);
 }
 
 async function lintWithESLint(
@@ -199,12 +291,21 @@ async function lintWithPrettier(files: string[]): Promise<boolean> {
     }
 }
 
-async function lintWithPrettierByGlob(
-    sourcePatterns: string[],
+async function lintWithStylelint(
+    patterns: string[],
     projectPath: string,
 ): Promise<boolean> {
-    const targetFiles = await getSourceFiles(sourcePatterns, projectPath);
-    return lintWithPrettier(targetFiles);
+    const result = await stylelint.lint({
+        files: patterns,
+        cwd: projectPath,
+        formatter: 'string',
+    });
+
+    if (result.output) {
+        console.log(result.output);
+    }
+
+    return !result.errored;
 }
 
 async function lintCommitMessage(message: string) {

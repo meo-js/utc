@@ -13,12 +13,12 @@ export async function config(
 ): Promise<unknown> {
     if (arg1 === 'prettier') {
         const {
-            js: { tailwindcss },
+            web: { tailwindcss },
         } = await resolveConfig();
         return prettier.config({ tailwindcss });
     } else if (arg1 === 'eslint') {
         const {
-            js: { jsdoc },
+            web: { jsdoc },
         } = await resolveConfig();
         return eslint.config({ jsdoc });
     } else {

@@ -1,7 +1,6 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { resolveConfigFromArgv } from './config.js';
-import { scriptExt } from './shared.js';
 
 export type Argv = typeof argv;
 
@@ -15,18 +14,18 @@ export const cli = yargs(hideBin(process.argv))
         defaultDescription: 'Current working directory',
         requiresArg: true,
     })
-    .option('js.source', {
-        describe: 'JavaScript Source code paths.',
+    .option('web.source', {
+        describe: 'Web Source code paths.',
         type: 'string',
-        defaultDescription: `src/**/*.${scriptExt}`,
+        defaultDescription: `src/**/*`,
     })
-    .option('js.tailwindcss', {
+    .option('web.tailwindcss', {
         describe: 'Use Tailwind CSS.',
         type: 'boolean',
         defaultDescription: 'false',
     })
-    .option('js.jsdoc', {
-        describe: 'JSDoc check level for ESLint (none|loose|strict).',
+    .option('web.jsdoc', {
+        describe: 'JSDoc check level for ESLint.',
         type: 'string',
         choices: ['none', 'loose', 'strict'] as const,
         defaultDescription: 'loose',
