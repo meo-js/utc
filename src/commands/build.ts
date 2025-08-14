@@ -27,7 +27,9 @@ cli.command(
       config.web.build.conditions,
     );
 
-    await rm(join(config.project, 'dist'), { recursive: true });
+    try {
+      await rm(join(config.project, 'dist'), { recursive: true });
+    } catch (error) {}
 
     // 初始化 packageExports 状态
     const needExports = config.web.build.exports;
@@ -143,6 +145,7 @@ async function buildSingle(
     options.attw = {
       level: 'error',
     };
+    options.unused = true;
   }
 
   await build(options);
