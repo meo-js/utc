@@ -8,141 +8,188 @@ const { cssExt, htmlExt, scriptExt, vueExt, testSuffix } = glob;
 export const CFG_NAME = 'utc';
 
 export interface Config {
-    /**
-     * Project path.
-     *
-     * @default {@link cwd}
-     */
-    project?: string;
+  /**
+   * Project path.
+   *
+   * @default {@link cwd}
+   */
+  project?: string;
 
-    /**
-     * JavaScript、HTML、CSS configuration.
-     */
-    web?: WebConfig;
+  /**
+   * JavaScript、HTML、CSS configuration.
+   */
+  web?: WebConfig;
 }
 
 export interface WebConfig {
-    /**
-     * Source code paths.
-     *
-     * Support files, directorys, Glob patterns.
-     *
-     * 如果传入目录，将规范化成带有扩展名的 Glob pattern（`dir/**\/*.<ext>`）：
-     * - `JavaScript` - {@link scriptExt}
-     * - `CSS` - {@link cssExt}
-     * - `HTML` - {@link htmlExt}
-     * - `Vue` - {@link vueExt}
-     * - `Test` - {@link testSuffix}
-     *
-     * @default "src"
-     */
-    source?: string[];
+  /**
+   * Source code paths.
+   *
+   * Support files, directorys, Glob patterns.
+   *
+   * 如果传入目录，将规范化成带有扩展名的 Glob pattern（`dir/**\/*.<ext>`）：
+   * - `JavaScript` - {@link scriptExt}
+   * - `CSS` - {@link cssExt}
+   * - `HTML` - {@link htmlExt}
+   * - `Vue` - {@link vueExt}
+   * - `Test` - {@link testSuffix}
+   *
+   * @default "src"
+   */
+  source?: string[];
 
-    /**
-     * Use CSS.
-     *
-     * @default false
-     */
-    css?: boolean;
+  /**
+   * 构建配置。
+   */
+  build?: WebBuildConfig;
 
-    /**
-     * Use Tailwind CSS.
-     *
-     * @default false
-     */
-    tailwindcss?: boolean;
+  /**
+   * Use CSS.
+   *
+   * @default false
+   */
+  css?: boolean;
 
-    /**
-     * JSDoc 检查级别。
-     *
-     * - none - 不启用 JSDoc 规则
-     * - loose - 宽松检查
-     * - strict - 严格检查
-     *
-     * @default "loose"
-     */
-    jsdoc?: 'none' | 'loose' | 'strict';
+  /**
+   * Use Tailwind CSS.
+   *
+   * @default false
+   */
+  tailwindcss?: boolean;
+
+  /**
+   * JSDoc 检查级别。
+   *
+   * - none - 不启用 JSDoc 规则
+   * - loose - 宽松检查
+   * - strict - 严格检查
+   *
+   * @default "loose"
+   */
+  jsdoc?: 'none' | 'loose' | 'strict';
+}
+
+export interface WebBuildConfig {
+  /**
+   * 构建入口点。
+   *
+   * 如果提供该选项，那么将该选项提供的所有模块视为根模块，而不会根据注释自动推断。
+   *
+   * 支持文件与 Glob patterns。
+   *
+   * @default 默认自动推断。
+   */
+  entry?: string | string[];
+
+  /**
+   * 严格模式
+   *
+   * 开启以下检查：
+   * - `publint`
+   * - `arethetypeswrong`
+   *
+   * @default false
+   */
+  strict?: boolean;
+
+  /**
+   * 条件构建组。
+   */
+  conditions?: string[] | Record<string, string[]>;
+
+  /**
+   * 条件编译常量类型文件（.d.ts）路径。
+   *
+   * @default "src/compile-constant.d.ts"
+   */
+  compileConstantDts?: string;
 }
 
 export type ResolvedConfig = Config & {
-    project: string;
-    web: WebConfig & {
-        source: string[];
-        css: boolean;
-        tailwindcss: boolean;
-        jsdoc: 'none' | 'loose' | 'strict';
-    };
+  project: string;
+  web: WebConfig & {
+    source: string[];
+    build: WebBuildConfig
+      & Required<Pick<WebBuildConfig, 'strict' | 'compileConstantDts'>>;
+    css: boolean;
+    tailwindcss: boolean;
+    jsdoc: 'none' | 'loose' | 'strict';
+  };
 };
 
 export async function resolveConfigFromArgv(cmdArgv: Argv) {
-    const argvConfig = parseArgvToConfig(cmdArgv);
-    return resolveConfig(cmdArgv.project, argvConfig);
+  const argvConfig = parseArgvToConfig(cmdArgv);
+  return resolveConfig(cmdArgv.project, argvConfig);
 }
 
 export async function resolveConfig(
-    project: string = cwd(),
-    overrides?: ResolvableConfig<Config>,
+  project: string = cwd(),
+  overrides?: ResolvableConfig<Config>,
 ) {
-    const { config } = await loadConfig({
-        cwd: project,
-        name: CFG_NAME,
-        packageJson: true,
-        overrides: overrides,
-        defaults: {
-            project: cwd(),
-            web: {
-                source: [`src`],
-                css: false,
-                tailwindcss: false,
-                jsdoc: 'loose',
-            },
+  const { config } = await loadConfig({
+    cwd: project,
+    name: CFG_NAME,
+    packageJson: true,
+    overrides: overrides,
+    defaults: {
+      project: cwd(),
+      web: {
+        source: [`src`],
+        css: false,
+        tailwindcss: false,
+        jsdoc: 'loose',
+        build: {
+          strict: false,
+          compileConstantDts: 'src/compile-constant.d.ts',
         },
-    });
+      },
+    },
+  });
 
-    return config as ResolvedConfig;
+  return config as ResolvedConfig;
 }
 
 export async function hasConfig(project: string = cwd()) {
-    try {
-        await loadConfig({
-            cwd: project,
-            name: CFG_NAME,
-            packageJson: true,
-            configFileRequired: true,
-        });
-        return true;
-    } catch (error) {
-        return false;
-    }
+  try {
+    await loadConfig({
+      cwd: project,
+      name: CFG_NAME,
+      packageJson: true,
+      configFileRequired: true,
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function parseArgvToConfig(argv: Argv): Config {
-    const config: Config = {};
+  const config: Config = {};
 
-    const temp: Argv = { ...argv };
+  const temp: Argv = { ...argv };
 
-    ['_', '$0'].forEach(key => {
-        delete temp[key];
-    });
+  ['_', '$0'].forEach(key => {
+    delete temp[key];
+  });
 
-    for (const [key, value] of Object.entries(temp)) {
-        if (key.includes('.')) {
-            const nestedKey = key.split('.');
-            let current = config;
-            for (const [i, part] of nestedKey.entries()) {
-                if (i === nestedKey.length - 1) {
-                    current[part as never] = value as never;
-                } else {
-                    if (!current[part as never]) {
-                        current[part as never] = {} as never;
-                    }
-                    current = current[part as never];
-                }
-            }
+  for (const [key, value] of Object.entries(temp)) {
+    if (key.includes('.')) {
+      const nestedKey = key.split('.');
+      let current = config;
+      for (const [i, part] of nestedKey.entries()) {
+        if (i === nestedKey.length - 1) {
+          current[part as never] = value as never;
         } else {
-            config[key as never] = value as never;
+          if (!current[part as never]) {
+            current[part as never] = {} as never;
+          }
+          current = current[part as never];
         }
+      }
+    } else {
+      config[key as never] = value as never;
     }
+  }
 
-    return config;
+  return config;
 }

@@ -354,3 +354,196 @@ export const value = 1;
 ```js
 // #export tag:symbol as Symbol from "**/*.js"
 ```
+
+## 条件构建支持
+
+本章描述一种推荐的条件构建的组织方式，皆在提高可维护性，并提供对自动化生成工具的支持。
+
+你可以使用该方式实现：
+
+- 对不同环境、平台的支持。
+- 编译常量或标志。
+
+### 配置
+
+如果使用构建工具自动化生成，则可以增加一个配置项用于声明所有的条件，例如：
+
+```js
+{
+  conditions: [
+    'cocos',
+    'node',
+    'node-addons',
+    'default',
+  ],
+}
+```
+
+也支持声明多组条件，多组条件需要传入一个对象，键为组名，值为条件数组：
+
+```js
+{
+  conditions: {
+    env: [
+      'cocos',
+      'node',
+      'node-addons',
+      'default',
+    ],
+    platform: [
+      'ios',
+      'android',
+      'default',
+    ],
+  }
+}
+```
+
+- 每个条件组应该有不同的名称。
+- 每个条件应该有不同的名称，除了 `default` 这个规范确定的回退条件名称。
+- 每个组只有一个条件处于开启状态。
+
+### 条件常量
+
+推荐将条件常量统一放在源码根目录中名称为 `compile-constant` 的模块文件中。
+
+如果是构建工具，由于已经有了相应的配置声明，所以应该自动生成该文件；可增加一个配置让开发者指定模块的路径，使用上面的推荐路径作为默认值。
+
+以上面单组条件示例如下：
+
+```ts
+// #region Generated compile constants
+declare module 'compile-constant' {
+  export const COCOS: boolean;
+  export const NODE: boolean;
+  export const NODE_ADDONS: boolean;
+  export const DEFAULT: boolean;
+}
+// #endregion
+```
+
+多组条件示例如下：
+
+`src/compile-constant.d.ts`
+
+```ts
+// #region Generated compile constants
+declare module 'compile-constant/env' {
+  export const COCOS: boolean;
+  export const NODE: boolean;
+  export const NODE_ADDONS: boolean;
+  export const DEFAULT: boolean;
+}
+
+declare module 'compile-constant/platform' {
+  export const IOS: boolean;
+  export const ANDROID: boolean;
+}
+// #endregion
+```
+
+不一定要生成相同的形式，只需要让开发者可以访问到每个条件即可。
+
+### 条件导出
+
+应提供机制使包能够在不同条件下被外部导入。
+
+以 `Npm Package` 举例，上面单组条件示例如下：
+
+`package.json`
+
+```json
+{
+  "exports": {
+    "cocos": "./dist/cocos/index.js",
+    "node": "./dist/node/index.js",
+    "node-addons": "./dist/node-addons/index.js",
+    "default": "./dist/default/index.js"
+}
+```
+
+多组条件示例如下：
+
+`package.json`
+
+```json
+{
+  "exports": {
+    "cocos": {
+      "ios": "./dist/cocos/ios/index.js",
+      "android": "./dist/cocos/android/index.js",
+      "default": "./dist/cocos/default/index.js"
+    },
+    "node": {
+      "ios": "./dist/node/ios/index.js",
+      "android": "./dist/node/android/index.js",
+      "default": "./dist/node/default/index.js"
+    },
+    "node-addons": {
+      "ios": "./dist/node-addons/ios/index.js",
+      "android": "./dist/node-addons/android/index.js",
+      "default": "./dist/node-addons/default/index.js"
+    },
+    "default": {
+      "ios": "./dist/default/ios/index.js",
+      "android": "./dist/default/android/index.js",
+      "default": "./dist/default/default/index.js"
+    }
+}
+```
+
+这样外部就可以根据不同的条件导入相应的代码了。
+
+如果使用构建工具，那么工具应该遍历所有条件组并逐个开启条件来编译源码，例如 `./dist/node-addons/default/index.js` 应该是在开启 `env` 组的 `node-addons` 条件，和没有开启 `platform` 组任何条件下编译 `./src/index.ts` 模块的产物。
+
+### 条件导入
+
+在包的内部，可以使用 [条件常量](#条件常量) 来实现不同条件执行不同的代码；但有时候同模块在不同条件下的实现差别很大，这时候用单独的文件来实现会更具可维护性。
+
+有以下两种方法做到这一点。
+
+#### 重定向导入
+
+重定向导入即在不同条件下将导入文件的路径重写为其它文件。
+
+例如 `module.ts` -> `module.ios.ts`。
+
+这通常需要构建工具实现，某些构建工具有 `resolve.extension` 或 `resolve.extensionAlias` 选项，TypeScript 有 `moduleSuffixes` 选项。
+
+如果是多组条件，可能会类似 `module.ts` -> `module.cocos.ios.ts` 这样。
+
+当存在多个条件组时，应将每种组合都考虑在内，并优先选择最具体的条件。
+
+例如 `tsconfig.json` 可配置为：
+
+```json
+{
+  "compilerOptions": {
+    "moduleSuffixes": [".ios.cocos", ".cocos.ios", ".ios"]
+  }
+}
+```
+
+TypeScript 会按顺序尝试每个后缀，直到找到匹配的文件。
+
+多个条件在后缀的顺序应视项目而定，像上面的配置允许开发者使用任意顺序的后缀。
+
+#### 别名导入
+
+某些包机制内置别名导入的机制，例如 `Npm Package` 允许使用 `imports` 字段来定义别名导入。
+
+```json
+{
+  "imports": {
+    "#utils.js": {
+      "ios": "./src/utils.ios.js",
+      "android": "./src/utils.android.js",
+      "default": "./src/utils.default.js"
+    }
+  }
+}
+```
+
+这样可以通过 `import { something } from '#utils.js'` 的方式来自动导入相应条件的文件。
+
+如果正在编写自动化工具，为了避免开发者手动声明 `imports` 字段，可以在开发者创建模块时，搜寻带条件后缀的文件，自动生成 `imports` 字段。

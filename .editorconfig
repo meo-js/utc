@@ -1,43 +1,43 @@
 root = true
 
 [*]
+charset = utf-8
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
 
 [*.{js,ts,mjs,mts,jsx,tsx,jsm,cjs,cts,ctsx,mtsx}]
-charset = utf-8
-trim_trailing_whitespace = true
+indent_size = 2
+
+[*.{htm,html,css,sass,scss,less,pcss}]
+indent_size = 2
+
+[*.{vue,svelte}]
+indent_size = 2
+
+[*.rs]
 indent_size = 4
-indent_style = space
 
-[*.{md}]
-trim_trailing_whitespace = false
-
-[Makefile]
-indent_style = tab
-
-[*.sln]
-indent_style = tab
-
-[*.{csproj,vbproj,vcxproj.filters,proj,projitems,shproj}]
+[*.cs]
 indent_size = 4
-indent_style = space
 
-[*.{htm,html,css,sass,scss,less,pcss,svg,vue}]
+[*.{cpp,h,c,hpp,hxx}]
 indent_size = 4
-indent_style = space
 
-[*.{xml,config,props,targets,nuspec,resx,ruleset,vsixmanifest,vsct}]
-indent_size = 4
-indent_style = space
-
-[*.{json,json5,webmanifest}]
-indent_size = 4
-indent_style = space
-
-[package.json]
+[*.{json,jsonc,json5}]
 indent_size = 2
 
 [*.{yml,yaml}]
+indent_size = 2
+
+[*.{xml,csproj,svg,props,targets}]
+indent_size = 2
+
+[*.{md}]
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+[{Makefile,*.mk}]
 indent_size = 4
-indent_style = space
+indent_style = tab

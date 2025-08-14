@@ -60,18 +60,23 @@
     }
   },
   "dependencies": {
+    "@arethetypeswrong/core": "^0.18.2",
     "@commitlint/config-conventional": "^19.8.1",
     "@commitlint/format": "^19.8.1",
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
     "@inquirer/prompts": "^7.8.1",
-    "@meojs/cfgs": "^2.0.33",
+    "@meojs/cfgs": "^2.0.35",
     "@meojs/pkg-utils": "^1.0.3",
-    "braces": "^3.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
+    "minimatch": "^10.0.3",
     "nano-spawn": "^1.0.2",
+    "publint": "^0.3.12",
     "simple-git-hooks": "^2.13.1",
+    "ts-morph": "^26.0.0",
+    "tsdown": "^0.14.1",
+    "unplugin": "^1.16.0",
     "yargs": "^18.0.0"
   },
   "devDependencies": {

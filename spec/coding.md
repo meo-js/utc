@@ -185,7 +185,8 @@ function readAsync(): Promise<string>;
 - @shallow - 浅层响应式对象
 - @val - 响应式值
 - @decorator - 装饰器
-- @inheritDoc - 使用继承符号的文档。
+- @inheritdoc - 使用继承符号的文档。
+- @platform - 首行记录该符号适用的平台标识符，之后可以是多行详细描述。
 
 **文档级标记**
 
