@@ -1,22 +1,21 @@
 import { createUnplugin } from 'unplugin';
 import type { ResolvedConfig } from '../config.js';
 
-export function compileConstant(config: ResolvedConfig) {
+export function compileConstant(config: ResolvedConfig, activeConditions: Record<string, string | boolean> = {}) {
   const conditions = config.web.build.conditions;
 
-  // 预处理数据结构
-  const virtualModules = new Map<string, string>(); // id -> 预生成的代码
-  const resolvedIds = new Set<string>(); // 缓存需要解析的 id
+  const virtualModules = new Map<string, string>();
+  const resolvedIds = new Set<string>();
   const virtualIdPrefix = '\0compile-constant';
 
   if (conditions) {
     if (Array.isArray(conditions)) {
       const id = 'compile-constant';
       const constants = Object.fromEntries(
-        conditions.map(c => [toUpper(c), false]),
+        conditions.map(c => [toUpper(c), Boolean(activeConditions[c])]),
       );
-      const code = Object.keys(constants)
-        .map(k => `export const ${k} = false;`)
+      const code = Object.entries(constants)
+        .map(([k, v]) => `export const ${k} = ${v};`)
         .join('\n');
 
       resolvedIds.add(id);
@@ -24,11 +23,12 @@ export function compileConstant(config: ResolvedConfig) {
     } else {
       for (const [group, list] of Object.entries(conditions)) {
         const id = `compile-constant/${group}`;
+        const activeCondition = activeConditions[group];
         const constants = Object.fromEntries(
-          list.map(c => [toUpper(c), false]),
+          list.map(c => [toUpper(c), c === activeCondition]),
         );
-        const code = Object.keys(constants)
-          .map(k => `export const ${k} = false;`)
+        const code = Object.entries(constants)
+          .map(([k, v]) => `export const ${k} = ${v};`)
           .join('\n');
 
         resolvedIds.add(id);

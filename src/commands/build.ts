@@ -16,108 +16,158 @@ cli.command(
   () => {},
   async args => {
     const config = await resolveConfigFromArgv(args);
-    const entry = await getEntry(config);
-
-    const plugin = compileConstant(config);
-    const options: Options = {
-      cwd: config.project,
-      entry,
-      sourcemap: true,
-      dts: true,
-      treeshake: true,
-      target: 'esnext',
-      platform: 'neutral',
-      unbundle: true,
-      format: ['esm', 'cjs'],
-      hooks: {},
-      plugins: [plugin],
-      inputOptions: {
-        // TODO: 从 rolldown 默认值中扩展
-        // https://github.com/rolldown/rolldown/blob/main/crates/rolldown_resolver/src/resolver.rs
-        // https://github.com/sxzz/dts-resolver/blob/main/src/index.ts
-        // https://github.com/sxzz/rolldown-plugin-dts/issues/84
-        // exports entrypoint 不应该响应该机制
-        resolve: {
-          extensionAlias: {
-            '.js': [
-              '.ios.cocos.js',
-              '.ios.js',
-              '.js',
-              '.ios.cocos.ts',
-              '.ios.ts',
-              '.ts',
-            ],
-            '.mjs': [
-              '.ios.cocos.mjs',
-              '.ios.mjs',
-              '.mjs',
-              '.ios.cocos.mts',
-              '.ios.mts',
-              '.mts',
-            ],
-            '.cjs': [
-              '.ios.cocos.cjs',
-              '.ios.cjs',
-              '.cjs',
-              '.ios.cocos.cts',
-              '.ios.cts',
-              '.cts',
-            ],
-          },
-          extensions: [
-            '.ios.cocos.tsx',
-            '.ios.cocos.ts',
-            '.ios.cocos.jsx',
-            '.ios.cocos.js',
-            '.ios.cocos.json',
-            '.ios.tsx',
-            '.ios.ts',
-            '.ios.jsx',
-            '.ios.js',
-            '.ios.json',
-            '.tsx',
-            '.ts',
-            '.jsx',
-            '.js',
-            '.json',
-          ],
-        },
-      },
-      exports: {
-        customExports(exports, context) {
-          console.log('Custom Exports:', exports, context);
-          return exports;
-        },
-      },
-      outputOptions: (options, format, context) => {
-        console.log('Output Options:', options, format, context);
-      },
-      onSuccess(config, signal) {
-        console.log('Config:', config);
-      },
-    };
-
-    // watch
-    if (config.web.build.entry == null) {
-      (<TsdownHooks>options.hooks)['build:prepare'] = async ctx => {
-        console.log(ctx.options.inputOptions);
-        ctx.options.entry = await getEntry(config);
-      };
-    }
-
-    if (config.web.build.strict) {
-      options.publint = {
-        strict: true,
-      };
-      options.attw = {
-        level: 'error',
-      };
-    }
-
-    await build(options);
     await generateCompileConstantDts(config);
+    
+    const conditionCombinations = getConditionCombinations(config.web.build.conditions);
+    
+    if (conditionCombinations.length === 0) {
+      await buildSingle(config, {});
+    } else {
+      for (const combination of conditionCombinations) {
+        await buildSingle(config, combination);
+      }
+    }
   },
 );
+
+function getConditionCombinations(conditions: string[] | Record<string, string[]> | undefined) {
+  if (!conditions) return [];
+
+  if (Array.isArray(conditions)) {
+    return conditions.map(condition => ({ [condition]: true }));
+  }
+
+  const groups = Object.entries(conditions);
+  if (groups.length === 0) return [];
+
+  const combinations: Array<Record<string, string>> = [];
+  
+  function generateCombinations(groupIndex: number, currentCombination: Record<string, string>) {
+    if (groupIndex === groups.length) {
+      combinations.push({ ...currentCombination });
+      return;
+    }
+    
+    const [groupName, groupConditions] = groups[groupIndex];
+    for (const condition of groupConditions) {
+      generateCombinations(groupIndex + 1, { ...currentCombination, [groupName]: condition });
+    }
+  }
+  
+  generateCombinations(0, {});
+  return combinations;
+}
+
+async function buildSingle(config: ResolvedConfig, activeConditions: Record<string, string | boolean>) {
+  const entry = await getEntry(config);
+  const outDirSuffix = generateOutDirSuffix(activeConditions);
+
+  const options: Options = {
+    cwd: config.project,
+    entry,
+    sourcemap: true,
+    dts: true,
+    treeshake: true,
+    target: 'esnext',
+    platform: 'neutral',
+    unbundle: true,
+    format: ['esm', 'cjs'],
+    outDir: outDirSuffix ? `dist/${outDirSuffix}` : 'dist',
+    hooks: {},
+    plugins: [compileConstant(config, activeConditions)],
+    inputOptions: {
+      resolve: buildResolveConfig(activeConditions),
+    },
+  };
+
+  if (config.web.build.entry == null) {
+    (<TsdownHooks>options.hooks)['build:prepare'] = async ctx => {
+      ctx.options.entry = await getEntry(config);
+    };
+  }
+
+  if (config.web.build.strict) {
+    options.publint = {
+      strict: true,
+    };
+    options.attw = {
+      level: 'error',
+    };
+  }
+
+  await build(options);
+}
+
+function generateOutDirSuffix(activeConditions: Record<string, string | boolean>) {
+  const parts: string[] = [];
+  
+  for (const [key, value] of Object.entries(activeConditions)) {
+    if (typeof value === 'boolean' && value) {
+      parts.push(key);
+    } else if (typeof value === 'string') {
+      parts.push(value);
+    }
+  }
+  
+  return parts.length > 0 ? parts.join('/') : '';
+}
+
+function buildResolveConfig(activeConditions: Record<string, string | boolean>) {
+  const suffixes: string[] = [];
+  
+  const conditionKeys = Object.keys(activeConditions);
+  
+  if (conditionKeys.length === 0) {
+    return {
+      extensionAlias: {
+        '.js': ['.js', '.ts'],
+        '.mjs': ['.mjs', '.mts'],
+        '.cjs': ['.cjs', '.cts'],
+      },
+      extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
+    };
+  }
+
+  for (let i = conditionKeys.length; i > 0; i--) {
+    for (const permutation of getPermutations(conditionKeys, i)) {
+      const suffix = '.' + permutation.map(key => activeConditions[key]).join('.');
+      suffixes.push(suffix);
+    }
+  }
+
+  const extensionAlias: Record<string, string[]> = {};
+  const extensions: string[] = [];
+  
+  for (const baseExt of ['js', 'mjs', 'cjs']) {
+    const aliases = [];
+    for (const suffix of suffixes) {
+      aliases.push(`${suffix}.${baseExt}`, `${suffix}.${baseExt === 'js' ? 'ts' : baseExt === 'mjs' ? 'mts' : 'cts'}`);
+    }
+    aliases.push(`.${baseExt}`, `.${baseExt === 'js' ? 'ts' : baseExt === 'mjs' ? 'mts' : 'cts'}`);
+    extensionAlias[`.${baseExt}`] = aliases;
+  }
+  
+  for (const suffix of suffixes) {
+    extensions.push(`${suffix}.tsx`, `${suffix}.ts`, `${suffix}.jsx`, `${suffix}.js`, `${suffix}.json`);
+  }
+  extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
+
+  return { extensionAlias, extensions };
+}
+
+function getPermutations<T>(arr: T[], length: number): T[][] {
+  if (length === 1) return arr.map(item => [item]);
+  
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rest = arr.slice(0, i).concat(arr.slice(i + 1));
+    const perms = getPermutations(rest, length - 1);
+    for (const perm of perms) {
+      result.push([arr[i], ...perm]);
+    }
+  }
+  return result;
+}
 
 async function generateCompileConstantDts(config: ResolvedConfig) {
   const conditions = config.web.build.conditions;
@@ -157,8 +207,6 @@ async function getEntry(config: ResolvedConfig) {
 }
 
 async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
-  // 自动收集根模块 (公开模块) 作为入口。
-  // 根模块判定依据：存在模块级 JSDoc，包含 @public 与 @module 标记。
   const projectRoot = config.project;
   const sourceGlobs = config.web.source;
 
@@ -170,13 +218,10 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
   }
 
   const project = new Project({});
-
   const rootEntries: string[] = [];
 
   for (const file of files) {
     const sourceFile = project.addSourceFileAtPath(file);
-    // 查找文件级 JSDoc：在顶层第一个 statement 之前的 JSDoc 或直接在文件开头的 JSDoc
-    // ts-morph 没有直接的 file jsdoc API，这里遍历语句并收集 pos==0 前的 JSDoc
     let moduleCommentBlocks: string[] = [];
     try {
       const statements = sourceFile.getStatements();
@@ -190,7 +235,6 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
           }
         }
       } else {
-        // 空文件：检查文件全部注释
         const fullText = sourceFile.getFullText();
         const match = fullText.match(/^\/\*\*[\s\S]*?\*\//);
         if (match) moduleCommentBlocks.push(match[0]);
@@ -201,7 +245,6 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
 
     if (!moduleCommentBlocks.length) continue;
 
-    // 简单策略：使用第一块 JSDoc
     const doc = moduleCommentBlocks[0];
     const isModule = /@module\b/.test(doc);
     const isPublic = /@public\b/.test(doc);
@@ -224,30 +267,22 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
 export function toEntrySubPathMap(paths: string[], projectRoot: string) {
   if (!paths.length) return {} as Record<string, string>;
 
-  // 解析 @modulePath
-  // 读取文件首个 JSDoc，若包含 @modulePath <subPath>，则使用该子路径。
-  // 否则使用默认推断规则。
-  // 若子路径重复（指向不同文件）则抛出错误。
-
   interface ModuleInfo {
-    file: string; // 规范化相对 projectRoot 的路径
-    custom?: string; // 自定义子路径（含 ./ 或 为 .）
-    auto: string; // 自动规则生成的子路径
-    final: string; // 最终采用的子路径
+    file: string;
+    custom?: string;
+    auto: string;
+    final: string;
   }
 
   const normalizedFiles = paths.map(v => normalizeMatchPath(v, projectRoot));
-
-  // 建一个临时 ts-morph 项目用于解析注释（不解析类型，无需 tsconfig）
   const project = new Project({
     useInMemoryFileSystem: false,
     skipFileDependencyResolution: true,
   });
 
-  // 计算公共前缀用于自动规则
   let root = '';
   if (normalizedFiles.length === 1) {
-    root = projectRoot; // 单文件根直接 projectRoot（自动子路径会成为 '.'）
+    root = projectRoot;
   } else {
     const segsList = normalizedFiles.map(p => p.split('/'));
     let common: string[] = [];
@@ -261,17 +296,12 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
   }
 
   const modules: ModuleInfo[] = [];
-
-  const customPathSet = new Map<string, string>(); // subPath -> file
+  const customPathSet = new Map<string, string>();
 
   for (const file of normalizedFiles) {
-    const absPath = file.startsWith('.')
-      ? file.replace(/^\./, projectRoot === '.' ? '' : '')
-      : file; // if already absolute keep
     let custom: string | undefined;
     try {
       const sourceFile = project.addSourceFileAtPath(file);
-      // 取第一个 statement 的 leading JSDoc
       const statements = sourceFile.getStatements();
       let jsdocText = '';
       if (statements.length) {
@@ -288,11 +318,9 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
         const m = jsdocText.match(/@modulePath\s+([^*\s]+)/);
         if (m) {
           let sub = m[1].trim();
-          // 规范化：去掉多余引号
           sub = sub.replace(/^['"`]|['"`]$/g, '');
           if (sub === '' || sub === './') sub = '.';
           if (!sub.startsWith('./')) {
-            // 允许用户省略开头的 ./ （例如 math -> ./math）
             sub = './' + sub.replace(/^\/+/, '');
           }
           if (sub !== '.' && !sub.startsWith('./')) {
@@ -300,7 +328,6 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
               `@modulePath 必须以 ./ 开头或为 '.' (${file} => ${sub})`,
             );
           }
-          // 不允许以 / 结尾
           sub = sub.replace(/\/$/, '');
           custom = sub;
         }
@@ -312,7 +339,6 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
     const auto = toEntrySubPath(root, file);
     const final = custom ?? auto;
 
-    // 检测冲突：如果已有相同 subPath 但是文件不同
     const existed = customPathSet.get(final);
     if (existed && existed !== file) {
       throw new Error(
@@ -324,7 +350,6 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
     modules.push({ file, custom, auto, final });
   }
 
-  // 如果只有一个模块，但自定义子路径不是 '.'，即可按自定义返回；否则默认 '.'
   const map: Record<string, string> = {};
   for (const m of modules) {
     map[m.final] = m.file;
@@ -333,17 +358,8 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
 }
 
 export function toEntrySubPath(root: string, path: string) {
-  // 生成相对于 root 的入口子路径，移除扩展名。
-  // 规则：
-  // 1. 计算相对路径；
-  // 2. 去掉已知脚本扩展(.ts,.tsx,.js,.mjs,.cjs,.jsx)；
-  // 3. 若以 /index 结尾，去掉该 index（保持目录作为入口）；
-  // 4. 返回以 ./ 开头；相对路径为空时返回 '.'。
-
-  // 使用 normalizeMatchPath 来获取规范化的相对路径
   let rel = normalizeMatchPath(path, root);
 
-  // 特殊情况：如果结果是 '.'，表示 path 就是 root
   if (rel === '.') {
     rel = '';
   }
@@ -356,7 +372,6 @@ export function toEntrySubPath(root: string, path: string) {
     }
   }
 
-  // 去掉 trailing /index
   rel = rel.replace(/(^|\/)index$/i, '$1').replace(/\/$/, '');
 
   if (!rel) return '.';

@@ -173,12 +173,22 @@ function parseArgvToConfig(argv: Argv): Config {
   });
 
   for (const [key, value] of Object.entries(temp)) {
+    let parsedValue = value;
+    
+    if (key === 'web.build.conditions' && typeof value === 'string') {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch {
+        throw new Error(`Invalid JSON for conditions: ${value}`);
+      }
+    }
+
     if (key.includes('.')) {
       const nestedKey = key.split('.');
       let current = config;
       for (const [i, part] of nestedKey.entries()) {
         if (i === nestedKey.length - 1) {
-          current[part as never] = value as never;
+          current[part as never] = parsedValue as never;
         } else {
           if (!current[part as never]) {
             current[part as never] = {} as never;
@@ -187,7 +197,7 @@ function parseArgvToConfig(argv: Argv): Config {
         }
       }
     } else {
-      config[key as never] = value as never;
+      config[key as never] = parsedValue as never;
     }
   }
 
