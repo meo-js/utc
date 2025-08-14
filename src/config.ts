@@ -103,6 +103,13 @@ export interface WebBuildConfig {
    * @default "src/compile-constant.d.ts"
    */
   compileConstantDts?: string;
+
+  /**
+   * 自动更新 package.json 的 `exports` 字段。
+   *
+   * @default true
+   */
+  exports?: boolean;
 }
 
 export type ResolvedConfig = Config & {
@@ -110,7 +117,9 @@ export type ResolvedConfig = Config & {
   web: WebConfig & {
     source: string[];
     build: WebBuildConfig
-      & Required<Pick<WebBuildConfig, 'strict' | 'compileConstantDts'>>;
+      & Required<
+        Pick<WebBuildConfig, 'strict' | 'compileConstantDts' | 'exports'>
+      >;
     css: boolean;
     tailwindcss: boolean;
     jsdoc: 'none' | 'loose' | 'strict';
@@ -141,6 +150,7 @@ export async function resolveConfig(
         build: {
           strict: false,
           compileConstantDts: 'src/compile-constant.d.ts',
+          exports: true,
         },
       },
     },
@@ -174,7 +184,7 @@ function parseArgvToConfig(argv: Argv): Config {
 
   for (const [key, value] of Object.entries(temp)) {
     let parsedValue = value;
-    
+
     if (key === 'web.build.conditions' && typeof value === 'string') {
       try {
         parsedValue = JSON.parse(value);

@@ -43,6 +43,11 @@ export const cli = yargs(hideBin(process.argv))
     type: 'string',
     defaultDescription: 'src/compile-constant.d.ts',
   })
+  .option('web.build.exports', {
+    describe: 'Enable exports field in package.json.',
+    type: 'boolean',
+    defaultDescription: 'true',
+  })
   .option('web.tailwindcss', {
     describe: 'Use Tailwind CSS.',
     type: 'boolean',

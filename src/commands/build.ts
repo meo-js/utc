@@ -1,11 +1,17 @@
 import { glob } from '@meojs/cfgs';
-import { mkdir, writeFile } from 'fs/promises';
-import { dirname, relative } from 'path';
+import { mkdir, rm, writeFile } from 'fs/promises';
+import { dirname, join, relative } from 'path';
 import { Project } from 'ts-morph';
 import { build, type Options, type TsdownHooks } from 'tsdown';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
 import { compileConstant } from '../plugins/compile-constant.js';
+import {
+  finalizePackageExports,
+  initializePackageExportsState,
+  markConditionComplete,
+  packageExports,
+} from '../plugins/package-exports.js';
 import { normalizeMatchPath, resolveGlob } from '../shared.js';
 
 const { scriptExt, scriptExts } = glob;
@@ -16,21 +22,51 @@ cli.command(
   () => {},
   async args => {
     const config = await resolveConfigFromArgv(args);
-    await generateCompileConstantDts(config);
-    
-    const conditionCombinations = getConditionCombinations(config.web.build.conditions);
-    
+
+    const conditionCombinations = getConditionCombinations(
+      config.web.build.conditions,
+    );
+
+    await rm(join(config.project, 'dist'), { recursive: true });
+
+    // 初始化 packageExports 状态
+    const needExports = config.web.build.exports;
+    if (needExports) {
+      initializePackageExportsState(config.project);
+    }
+
+    const entry = await getEntry(config);
+
     if (conditionCombinations.length === 0) {
       await buildSingle(config, {});
+      if (needExports) {
+        markConditionComplete(config.project, {});
+      }
     } else {
       for (const combination of conditionCombinations) {
         await buildSingle(config, combination);
+        if (needExports) {
+          markConditionComplete(config.project, combination);
+        }
       }
     }
+
+    // 最终生成 package.json exports
+    if (needExports) {
+      await finalizePackageExports(
+        config.project,
+        Array.isArray(entry) ? entry : [entry],
+        config,
+      );
+    }
+
+    await generateCompileConstantDts(config);
   },
 );
 
-function getConditionCombinations(conditions: string[] | Record<string, string[]> | undefined) {
+function getConditionCombinations(
+  conditions: string[] | Record<string, string[]> | undefined,
+) {
   if (!conditions) return [];
 
   if (Array.isArray(conditions)) {
@@ -41,26 +77,37 @@ function getConditionCombinations(conditions: string[] | Record<string, string[]
   if (groups.length === 0) return [];
 
   const combinations: Array<Record<string, string>> = [];
-  
-  function generateCombinations(groupIndex: number, currentCombination: Record<string, string>) {
+
+  function generateCombinations(
+    groupIndex: number,
+    currentCombination: Record<string, string>,
+  ) {
     if (groupIndex === groups.length) {
       combinations.push({ ...currentCombination });
       return;
     }
-    
+
     const [groupName, groupConditions] = groups[groupIndex];
     for (const condition of groupConditions) {
-      generateCombinations(groupIndex + 1, { ...currentCombination, [groupName]: condition });
+      generateCombinations(groupIndex + 1, {
+        ...currentCombination,
+        [groupName]: condition,
+      });
     }
   }
-  
+
   generateCombinations(0, {});
   return combinations;
 }
 
-async function buildSingle(config: ResolvedConfig, activeConditions: Record<string, string | boolean>) {
+async function buildSingle(
+  config: ResolvedConfig,
+  activeConditions: Record<string, string | boolean>,
+) {
   const entry = await getEntry(config);
   const outDirSuffix = generateOutDirSuffix(activeConditions);
+
+  const outDir = outDirSuffix ? `dist/${outDirSuffix}` : 'dist';
 
   const options: Options = {
     cwd: config.project,
@@ -72,9 +119,12 @@ async function buildSingle(config: ResolvedConfig, activeConditions: Record<stri
     platform: 'neutral',
     unbundle: true,
     format: ['esm', 'cjs'],
-    outDir: outDirSuffix ? `dist/${outDirSuffix}` : 'dist',
+    outDir,
     hooks: {},
-    plugins: [compileConstant(config, activeConditions)],
+    plugins: [
+      compileConstant(config, activeConditions),
+      packageExports(config, activeConditions, entry, outDir),
+    ],
     inputOptions: {
       resolve: buildResolveConfig(activeConditions),
     },
@@ -98,9 +148,11 @@ async function buildSingle(config: ResolvedConfig, activeConditions: Record<stri
   await build(options);
 }
 
-function generateOutDirSuffix(activeConditions: Record<string, string | boolean>) {
+function generateOutDirSuffix(
+  activeConditions: Record<string, string | boolean>,
+) {
   const parts: string[] = [];
-  
+
   for (const [key, value] of Object.entries(activeConditions)) {
     if (typeof value === 'boolean' && value) {
       parts.push(key);
@@ -108,47 +160,86 @@ function generateOutDirSuffix(activeConditions: Record<string, string | boolean>
       parts.push(value);
     }
   }
-  
+
   return parts.length > 0 ? parts.join('/') : '';
 }
 
-function buildResolveConfig(activeConditions: Record<string, string | boolean>) {
-  const suffixes: string[] = [];
-  
-  const conditionKeys = Object.keys(activeConditions);
-  
-  if (conditionKeys.length === 0) {
+function buildResolveConfig(
+  activeConditions: Record<string, string | boolean>,
+) {
+  const conditionEntries = Object.entries(activeConditions).filter(
+    ([, v]) => v !== false && v != null && v !== '',
+  );
+
+  // 收集段（条件后缀的每一部分）
+  const segments: string[] = [];
+  for (const [key, value] of conditionEntries) {
+    if (typeof value === 'boolean') {
+      if (value) segments.push(key); // 使用键名
+    } else if (typeof value === 'string') {
+      segments.push(value);
+    }
+  }
+
+  if (segments.length === 0) {
+    // 无条件，回退到默认解析
     return {
       extensionAlias: {
         '.js': ['.js', '.ts'],
         '.mjs': ['.mjs', '.mts'],
         '.cjs': ['.cjs', '.cts'],
+        '.jsx': ['.jsx', '.tsx'],
+        '.mjsx': ['.mjsx', '.mtsx'],
+        '.cjsx': ['.cjsx', '.ctsx'],
       },
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
     };
   }
 
-  for (let i = conditionKeys.length; i > 0; i--) {
-    for (const permutation of getPermutations(conditionKeys, i)) {
-      const suffix = '.' + permutation.map(key => activeConditions[key]).join('.');
-      suffixes.push(suffix);
+  // 生成后缀 (.a.b, .b.a, .a, .b ...)
+  const suffixes: string[] = [];
+  const seen = new Set<string>();
+  for (let len = segments.length; len > 0; len--) {
+    for (const perm of getPermutations(segments, len)) {
+      const suffix = '.' + perm.join('.');
+      if (!seen.has(suffix)) {
+        seen.add(suffix);
+        suffixes.push(suffix);
+      }
     }
   }
 
+  // 构造 extensionAlias (优先最具体)
   const extensionAlias: Record<string, string[]> = {};
   const extensions: string[] = [];
-  
-  for (const baseExt of ['js', 'mjs', 'cjs']) {
-    const aliases = [];
-    for (const suffix of suffixes) {
-      aliases.push(`${suffix}.${baseExt}`, `${suffix}.${baseExt === 'js' ? 'ts' : baseExt === 'mjs' ? 'mts' : 'cts'}`);
+
+  const baseMap: Record<string, { ts: string }> = {
+    js: { ts: 'ts' },
+    mjs: { ts: 'mts' },
+    cjs: { ts: 'cts' },
+    jsx: { ts: 'tsx' },
+    mjsx: { ts: 'mtsx' },
+    cjsx: { ts: 'ctsx' },
+  };
+
+  for (const baseExt of Object.keys(baseMap)) {
+    const aliases: string[] = [];
+    for (const s of suffixes) {
+      aliases.push(
+        `${s}.${baseExt}`,
+        `${s}.${baseMap[baseExt as keyof typeof baseMap].ts}`,
+      );
     }
-    aliases.push(`.${baseExt}`, `.${baseExt === 'js' ? 'ts' : baseExt === 'mjs' ? 'mts' : 'cts'}`);
+    // 回退原始
+    aliases.push(
+      `.${baseExt}`,
+      `.${baseMap[baseExt as keyof typeof baseMap].ts}`,
+    );
     extensionAlias[`.${baseExt}`] = aliases;
   }
-  
-  for (const suffix of suffixes) {
-    extensions.push(`${suffix}.tsx`, `${suffix}.ts`, `${suffix}.jsx`, `${suffix}.js`, `${suffix}.json`);
+
+  for (const s of suffixes) {
+    extensions.push(`${s}.tsx`, `${s}.ts`, `${s}.jsx`, `${s}.js`, `${s}.json`);
   }
   extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
 
@@ -157,7 +248,7 @@ function buildResolveConfig(activeConditions: Record<string, string | boolean>) 
 
 function getPermutations<T>(arr: T[], length: number): T[][] {
   if (length === 1) return arr.map(item => [item]);
-  
+
   const result: T[][] = [];
   for (let i = 0; i < arr.length; i++) {
     const rest = arr.slice(0, i).concat(arr.slice(i + 1));
@@ -319,16 +410,29 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
         if (m) {
           let sub = m[1].trim();
           sub = sub.replace(/^['"`]|['"`]$/g, '');
-          if (sub === '' || sub === './') sub = '.';
-          if (!sub.startsWith('./')) {
+
+          // 统一根路径写法
+          // 允许: '.', './', './.', '' => '.'
+          if (sub === '' || sub === '.' || sub === './' || sub === './.') {
+            sub = '.';
+          } else if (sub.startsWith('./')) {
+            // 保留 './foo'
+          } else {
             sub = './' + sub.replace(/^\/+/, '');
           }
+
+          // 去掉结尾 '/'
+          sub = sub.replace(/\/$/, '');
+
+          // 再次折叠 './.' => '.' (防御性)
+          if (sub === './.') sub = '.';
+
           if (sub !== '.' && !sub.startsWith('./')) {
             throw new Error(
               `@modulePath 必须以 ./ 开头或为 '.' (${file} => ${sub})`,
             );
           }
-          sub = sub.replace(/\/$/, '');
+
           custom = sub;
         }
       }
