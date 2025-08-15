@@ -48,6 +48,11 @@ export const cli = yargs(hideBin(process.argv))
     type: 'boolean',
     defaultDescription: 'true',
   })
+  .option('web.build.exportTypes', {
+    describe: 'Generate `types` subpath when updating `exports` field.',
+    type: 'boolean',
+    defaultDescription: 'false',
+  })
   .option('web.tailwindcss', {
     describe: 'Use Tailwind CSS.',
     type: 'boolean',
@@ -77,6 +82,7 @@ export const cli = yargs(hideBin(process.argv))
   .demandCommand(1, 'You need at least one command before moving on.')
   .strict()
   .wrap(yargs().terminalWidth())
+  .showHelpOnFail(false)
   .recommendCommands();
 
 // 子命令

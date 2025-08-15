@@ -64,7 +64,7 @@ importers:
         version: 26.0.0
       tsdown:
         specifier: ^0.14.1
-        version: 0.14.1(@arethetypeswrong/core@0.18.2)(publint@0.3.12)(typescript@5.7.3)
+        version: 0.14.1(@arethetypeswrong/core@0.18.2)(publint@0.3.12)(typescript@5.7.3)(unplugin-unused@0.5.1)
       unplugin:
         specifier: ^1.16.0
         version: 1.16.1
@@ -1310,6 +1310,9 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
+  js-tokens@9.0.1:
+    resolution: {integrity: sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ==}
+
   js-yaml@4.1.0:
     resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
     hasBin: true
@@ -1863,9 +1866,17 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
+  unplugin-unused@0.5.1:
+    resolution: {integrity: sha512-USnsy4XsInQFcIb/kSt5HbTkwIIYfW1ujGN0jPanq76IvG7RsqHPk4kJqDoZSqCgDkTjolr72a/f7K1Hr2XmWg==}
+    engines: {node: '>=20.18.0'}
+
   unplugin@1.16.1:
     resolution: {integrity: sha512-4/u/j4FrCKdi17jaxuJA0jClGxB1AvU2hw/IuayPc4ay1XGaJs/rbb4v5WKwAjNifjmXK9PIFyuPiaK8azyR9w==}
     engines: {node: '>=14.0.0'}
+
+  unplugin@2.3.5:
+    resolution: {integrity: sha512-RyWSb5AHmGtjjNQ6gIlA67sHOsWpsbWpwDokLwTcejVdOjEkJZh7QKu14J00gDDVSh8kGH4KYC/TNBceXFZhtw==}
+    engines: {node: '>=18.12.0'}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -3192,6 +3203,9 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
+  js-tokens@9.0.1:
+    optional: true
+
   js-yaml@4.1.0:
     dependencies:
       argparse: 2.0.1
@@ -3660,7 +3674,7 @@ snapshots:
       '@ts-morph/common': 0.27.0
       code-block-writer: 13.0.3
 
-  tsdown@0.14.1(@arethetypeswrong/core@0.18.2)(publint@0.3.12)(typescript@5.7.3):
+  tsdown@0.14.1(@arethetypeswrong/core@0.18.2)(publint@0.3.12)(typescript@5.7.3)(unplugin-unused@0.5.1):
     dependencies:
       ansis: 4.1.0
       cac: 6.7.14
@@ -3680,6 +3694,7 @@ snapshots:
       '@arethetypeswrong/core': 0.18.2
       publint: 0.3.12
       typescript: 5.7.3
+      unplugin-unused: 0.5.1
     transitivePeerDependencies:
       - '@typescript/native-preview'
       - oxc-resolver
@@ -3721,10 +3736,25 @@ snapshots:
 
   undici-types@6.21.0: {}
 
+  unplugin-unused@0.5.1:
+    dependencies:
+      js-tokens: 9.0.1
+      picocolors: 1.1.1
+      pkg-types: 2.2.0
+      unplugin: 2.3.5
+    optional: true
+
   unplugin@1.16.1:
     dependencies:
       acorn: 8.15.0
       webpack-virtual-modules: 0.6.2
+
+  unplugin@2.3.5:
+    dependencies:
+      acorn: 8.15.0
+      picomatch: 4.0.3
+      webpack-virtual-modules: 0.6.2
+    optional: true
 
   uri-js@4.4.1:
     dependencies:

@@ -87,6 +87,7 @@ export interface WebBuildConfig {
    * 开启以下检查：
    * - `publint`
    * - `arethetypeswrong`
+   * - `knip`(todo)
    *
    * @default false
    */
@@ -110,6 +111,13 @@ export interface WebBuildConfig {
    * @default true
    */
   exports?: boolean;
+
+  /**
+   * 更新 `exports` 字段时生成 `types` 子路径。
+   *
+   * @default false
+   */
+  exportTypes?: boolean;
 }
 
 export type ResolvedConfig = Config & {
@@ -118,7 +126,10 @@ export type ResolvedConfig = Config & {
     source: string[];
     build: WebBuildConfig
       & Required<
-        Pick<WebBuildConfig, 'strict' | 'compileConstantDts' | 'exports'>
+        Pick<
+          WebBuildConfig,
+          'strict' | 'compileConstantDts' | 'exports' | 'exportTypes'
+        >
       >;
     css: boolean;
     tailwindcss: boolean;
@@ -151,6 +162,7 @@ export async function resolveConfig(
           strict: false,
           compileConstantDts: 'src/compile-constant.d.ts',
           exports: true,
+          exportTypes: false,
         },
       },
     },

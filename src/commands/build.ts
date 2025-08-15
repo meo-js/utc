@@ -1,17 +1,26 @@
+import {
+  checkPackage,
+  createPackageFromTarballData,
+  type Problem,
+} from '@arethetypeswrong/core';
 import { glob } from '@meojs/cfgs';
-import { mkdir, rm, writeFile } from 'fs/promises';
+import { exec } from 'child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
 import { dirname, join, relative } from 'path';
+import { publint } from 'publint';
+import { formatMessage } from 'publint/utils';
 import { Project } from 'ts-morph';
-import { build, type Options, type TsdownHooks } from 'tsdown';
+import {
+  build,
+  type Options,
+  type TsdownChunks,
+  type TsdownHooks,
+} from 'tsdown';
+import { promisify } from 'util';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
 import { compileConstant } from '../plugins/compile-constant.js';
-import {
-  finalizePackageExports,
-  initializePackageExportsState,
-  markConditionComplete,
-  packageExports,
-} from '../plugins/package-exports.js';
 import { normalizeMatchPath, resolveGlob } from '../shared.js';
 
 const { scriptExt, scriptExts } = glob;
@@ -31,38 +40,35 @@ cli.command(
       await rm(join(config.project, 'dist'), { recursive: true });
     } catch (error) {}
 
-    // 初始化 packageExports 状态
     const needExports = config.web.build.exports;
-    if (needExports) {
-      initializePackageExportsState(config.project);
-    }
-
     const entry = await getEntry(config);
+    const buildResults: BuildResult[] = [];
 
     if (conditionCombinations.length === 0) {
-      await buildSingle(config, {});
-      if (needExports) {
-        markConditionComplete(config.project, {});
-      }
+      const result = await buildSingle(config, {});
+      buildResults.push(result);
     } else {
       for (const combination of conditionCombinations) {
-        await buildSingle(config, combination);
-        if (needExports) {
-          markConditionComplete(config.project, combination);
-        }
+        const result = await buildSingle(config, combination);
+        buildResults.push(result);
       }
     }
 
-    // 最终生成 package.json exports
     if (needExports) {
-      await finalizePackageExports(
+      await generatePackageExports(
         config.project,
         Array.isArray(entry) ? entry : [entry],
         config,
+        buildResults,
       );
     }
 
     await generateCompileConstantDts(config);
+
+    if (config.web.build.strict) {
+      await runPublintCheck(config.project);
+      await runAttwCheck(config.project);
+    }
   },
 );
 
@@ -102,14 +108,21 @@ function getConditionCombinations(
   return combinations;
 }
 
+interface BuildResult {
+  chunks: TsdownChunks;
+  activeConditions: Record<string, string | boolean>;
+  outDir: string;
+}
+
 async function buildSingle(
   config: ResolvedConfig,
   activeConditions: Record<string, string | boolean>,
-) {
+): Promise<BuildResult> {
   const entry = await getEntry(config);
   const outDirSuffix = generateOutDirSuffix(activeConditions);
 
   const outDir = outDirSuffix ? `dist/${outDirSuffix}` : 'dist';
+  let finalChunks!: TsdownChunks;
 
   const options: Options = {
     cwd: config.project,
@@ -123,12 +136,22 @@ async function buildSingle(
     format: ['esm', 'cjs'],
     outDir,
     hooks: {},
-    plugins: [
-      compileConstant(config, activeConditions),
-      packageExports(config, activeConditions, entry, outDir),
-    ],
+    exports: {
+      customExports(exports, context) {
+        finalChunks = context.chunks;
+        return exports;
+      },
+    },
+    plugins: [compileConstant(config, activeConditions)],
     inputOptions: {
       resolve: buildResolveConfig(activeConditions),
+      onLog: (level, log, defaultHandler) => {
+        if (log.code === 'UNRESOLVED_IMPORT') {
+          defaultHandler('error', log);
+          return;
+        }
+        defaultHandler(level, log);
+      },
     },
   };
 
@@ -138,17 +161,13 @@ async function buildSingle(
     };
   }
 
-  if (config.web.build.strict) {
-    options.publint = {
-      strict: true,
-    };
-    options.attw = {
-      level: 'error',
-    };
-    options.unused = true;
-  }
-
   await build(options);
+
+  return {
+    chunks: finalChunks,
+    activeConditions,
+    outDir,
+  };
 }
 
 function generateOutDirSuffix(
@@ -483,4 +502,665 @@ export function toEntrySubPath(root: string, path: string) {
 
   if (!rel) return '.';
   return rel.startsWith('.') ? rel : './' + rel;
+}
+
+async function generatePackageExports(
+  projectRoot: string,
+  entries: string[],
+  config: ResolvedConfig,
+  buildResults: BuildResult[],
+) {
+  const pkgPath = join(projectRoot, 'package.json');
+  const pkgContent = await readFile(pkgPath, 'utf-8');
+  const pkg = JSON.parse(pkgContent);
+
+  const subPathMap = toEntrySubPathMap(entries, projectRoot);
+  const outputFiles = collectOutputFiles(entries, buildResults);
+  const exportsField = buildExportsField(
+    subPathMap,
+    config,
+    outputFiles,
+    pkg.type,
+  );
+
+  let singleExport = {} as any;
+  if (
+    typeof exportsField['.'] === 'object'
+    && !Array.isArray(exportsField['.'])
+  ) {
+    singleExport = exportsField['.'];
+  }
+
+  let assignTopLevel = true;
+  const conds = config.web.build.conditions;
+  let defaultLeaf: any | undefined;
+
+  if (conds && !Array.isArray(conds)) {
+    const groups = conds as Record<string, string[]>;
+    assignTopLevel = Object.values(groups).every(arr =>
+      arr.includes('default'),
+    );
+    if (assignTopLevel) {
+      defaultLeaf = getLeafExportFollowingAllDefaults(singleExport, groups);
+      if (!defaultLeaf || Object.keys(defaultLeaf).length === 0)
+        assignTopLevel = false;
+    }
+  } else if (conds && Array.isArray(conds)) {
+    assignTopLevel = conds.includes('default');
+    if (assignTopLevel) defaultLeaf = singleExport.default || singleExport;
+  } else {
+    defaultLeaf = singleExport;
+  }
+
+  if (assignTopLevel && defaultLeaf) {
+    function branchPath(branch: any): string | undefined {
+      if (!branch) return undefined;
+      if (typeof branch === 'string') return branch;
+      if (typeof branch === 'object') {
+        if (typeof branch.default === 'string') return branch.default;
+      }
+      return undefined;
+    }
+    function branchTypes(branch: any): string | undefined {
+      if (!branch || typeof branch !== 'object') return undefined;
+      if (typeof branch.types === 'string') return branch.types;
+      if (branch.default && typeof branch.default === 'object') {
+        if (typeof branch.default.types === 'string')
+          return branch.default.types;
+      }
+      return undefined;
+    }
+
+    const requireBranch = defaultLeaf.require;
+    const importBranch = defaultLeaf.import;
+    const mainValue = branchPath(requireBranch);
+    const moduleValue = branchPath(importBranch);
+    let typesValue = branchTypes(requireBranch);
+
+    if (mainValue) pkg.main = mainValue;
+    else delete pkg.main;
+    if (moduleValue) pkg.module = moduleValue;
+    else delete pkg.module;
+
+    // 如果 exports 中没有写出 types （exportTypes 可能为 false），尝试根据 main/module 推断
+    if (!typesValue) {
+      // 只允许基于 CJS (main) 路径推断 types，不使用 ESM(module)
+      const preferScript = mainValue;
+      if (preferScript) {
+        // preferScript 形如 './dist/xxx.mjs'，去掉前缀 './'
+        const scriptPath = preferScript.replace(/^\.\//, '');
+        const scriptRoot = scriptPath.replace(/(\.mjs|\.cjs|\.js)$/i, '');
+        // 构造候选顺序，参考 createExportEntryFromOutputs 内部逻辑（与 package.type 相关）
+        const rankOrder = (() => {
+          if (/\.mjs$/i.test(preferScript))
+            return ['.d.mts', '.d.ts', '.d.cts'];
+          if (/\.cjs$/i.test(preferScript))
+            return ['.d.cts', '.d.ts', '.d.mts'];
+          if (/\.js$/i.test(preferScript)) {
+            if (pkg.type === 'module') return ['.d.ts', '.d.mts', '.d.cts'];
+            if (pkg.type === 'commonjs') return ['.d.cts', '.d.ts', '.d.mts'];
+          }
+          return ['.d.ts', '.d.cts', '.d.mts'];
+        })();
+
+        // 在当前 build 产生的 outputFiles 中查找匹配
+        const allOutputFiles: string[] = [];
+        for (const g of outputFiles.values()) {
+          for (const f of g.files) allOutputFiles.push(f.replace(/\\/g, '/'));
+        }
+        for (const ext of rankOrder) {
+          const candidate = scriptRoot + ext; // 相对路径（不含 './'）
+          // outputFiles 里的路径是 'dist/...' 形式
+          const match = allOutputFiles.find(
+            f => f === candidate || f.endsWith('/' + candidate),
+          );
+          if (match) {
+            typesValue = './' + match.replace(/^[.\/]+/, '');
+            break;
+          }
+        }
+      }
+    }
+
+    if (typesValue) pkg.types = typesValue;
+    else delete pkg.types;
+  } else {
+    delete pkg.main;
+    delete pkg.module;
+    delete pkg.types;
+  }
+
+  pkg.exports = exportsField;
+  pkg.exports['./package.json'] = './package.json';
+
+  await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+}
+
+function collectOutputFiles(
+  entries: string[],
+  buildResults: BuildResult[],
+): Map<string, OutputFileGroup> {
+  const outputFiles = new Map<string, OutputFileGroup>();
+
+  // Precompute entry names (basename without extension) -> original entry path
+  const entryNameMap = new Map<string, string>();
+  for (const e of entries) {
+    entryNameMap.set(getEntryName(e), e.startsWith('./') ? e : `./${e}`);
+  }
+
+  for (const result of buildResults) {
+    const conditionKey = JSON.stringify(result.activeConditions);
+
+    for (const chunks of Object.values(result.chunks)) {
+      for (const chunk of chunks || []) {
+        if (chunk.type !== 'chunk') continue;
+        const fileName = chunk.fileName;
+
+        // Accept runtime or helper chunks only if explicitly listed as entry (skip non-entry)
+        // We only map files whose basename (before any .d.* or extension) matches a known entry name
+        const baseMatch = fileName.match(
+          /([^/]+?)(?:\.d)?\.(?:m?c?js|[cm]?ts)$/,
+        );
+        if (!baseMatch) continue;
+        const base = baseMatch[1];
+        const entryPath = entryNameMap.get(base);
+        if (!entryPath) continue;
+
+        const key = `${entryPath}-${conditionKey}`;
+        const fullPath = join(result.outDir, fileName).replace(/\\/g, '/');
+        const existing = outputFiles.get(key);
+        if (existing) existing.files.add(fullPath);
+        else
+          outputFiles.set(key, {
+            entryPath,
+            condition: conditionKey,
+            files: new Set([fullPath]),
+          });
+      }
+    }
+  }
+
+  return outputFiles;
+}
+
+interface OutputFileGroup {
+  entryPath: string;
+  condition: string;
+  files: Set<string>;
+}
+
+function getEntryName(entryPath: string): string {
+  const relativePath = entryPath.replace(/^\.\//, '');
+  const withoutExt = relativePath.replace(
+    /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/,
+    '',
+  );
+  return withoutExt.split('/').pop() || 'index';
+}
+
+function buildExportsField(
+  subPathMap: Record<string, string>,
+  config: ResolvedConfig,
+  outputFiles: Map<string, OutputFileGroup>,
+  packageType: string | undefined,
+): Record<string, any> {
+  const exports: Record<string, any> = {};
+  const conditions = config.web.build.conditions;
+  const exportTypes = config.web.build.exportTypes === true;
+
+  for (const [subPath, entryPath] of Object.entries(subPathMap)) {
+    if (!conditions) {
+      const group = findOutputGroup(outputFiles, entryPath, '{}');
+      if (group)
+        exports[subPath] = createExportEntryFromOutputs(
+          outputFiles,
+          entryPath,
+          '{}',
+          packageType,
+          exportTypes,
+        );
+    } else if (Array.isArray(conditions)) {
+      exports[subPath] = createSimpleConditionalExportFromOutputs(
+        outputFiles,
+        entryPath,
+        conditions,
+        packageType,
+        exportTypes,
+      );
+    } else {
+      exports[subPath] = createNestedConditionalExportFromOutputs(
+        outputFiles,
+        entryPath,
+        conditions,
+        packageType,
+        exportTypes,
+      );
+    }
+  }
+
+  return exports;
+}
+
+function findOutputGroup(
+  outputFiles: Map<string, OutputFileGroup>,
+  entryPath: string,
+  condition: string,
+): OutputFileGroup | undefined {
+  const normalizedPath = entryPath.startsWith('./')
+    ? entryPath
+    : `./${entryPath}`;
+  return outputFiles.get(`${normalizedPath}-${condition}`);
+}
+
+function createExportEntryFromOutputs(
+  outputFiles: Map<string, OutputFileGroup>,
+  entryPath: string,
+  condition: string,
+  packageType: string | undefined,
+  exportTypes: boolean,
+): Record<string, any> {
+  const group = findOutputGroup(outputFiles, entryPath, condition);
+  if (!group) return {};
+
+  const dts: string[] = [];
+  const mjs: string[] = [];
+  const cjs: string[] = [];
+  const plainJs: string[] = [];
+
+  for (const f of group.files) {
+    // collect type declaration files: .d.ts, .d.mts, .d.cts
+    if (/\.d\.(ts|mts|cts)$/.test(f)) dts.push(f);
+    else if (f.endsWith('.mjs')) mjs.push(f);
+    else if (f.endsWith('.cjs')) cjs.push(f);
+    else if (f.endsWith('.js')) plainJs.push(f);
+  }
+
+  const toExportPath = (p: string) => (p.startsWith('./') ? p : `./${p}`);
+  const resultFlat: Record<string, string> = {};
+  let prioritizedDts: string | undefined;
+  if (dts.length) {
+    dts.sort((a, b) => {
+      const rank = (s: string) =>
+        s.endsWith('.d.ts')
+          ? 0
+          : s.endsWith('.d.mts')
+            ? 1
+            : s.endsWith('.d.cts')
+              ? 2
+              : 3;
+      return rank(a) - rank(b);
+    });
+    prioritizedDts = toExportPath(dts[0]);
+  }
+  if (mjs.length) resultFlat.import = toExportPath(mjs[0]);
+  if (cjs.length) resultFlat.require = toExportPath(cjs[0]);
+  if (!mjs.length && !resultFlat.import && plainJs.length)
+    resultFlat.import = toExportPath(plainJs[0]);
+  if (!cjs.length && !resultFlat.require && plainJs.length)
+    resultFlat.require = toExportPath(plainJs[0]);
+
+  if (exportTypes) {
+    const importBranch: Record<string, string> = {};
+    const requireBranch: Record<string, string> = {};
+    if (resultFlat.import) importBranch.default = resultFlat.import;
+    if (resultFlat.require) requireBranch.default = resultFlat.require;
+    if (dts.length) {
+      const pickTypesForScript = (
+        script: string | undefined,
+      ): string | undefined => {
+        if (!script) return undefined;
+        const scriptExtMatch = script.match(/(\.mjs|\.cjs|\.js)$/);
+        const scriptExt = scriptExtMatch ? scriptExtMatch[1] : '';
+        const root = script.replace(/(\.mjs|\.cjs|\.js)$/, '');
+        const rankOrder = (() => {
+          if (scriptExt === '.mjs') return ['.d.mts', '.d.ts', '.d.cts'];
+          if (scriptExt === '.cjs') return ['.d.cts', '.d.ts', '.d.mts'];
+          if (scriptExt === '.js') {
+            if (packageType === 'module') return ['.d.ts', '.d.mts', '.d.cts'];
+            if (packageType === 'commonjs')
+              return ['.d.cts', '.d.ts', '.d.mts'];
+          }
+          return ['.d.ts', '.d.cts', '.d.mts'];
+        })();
+        for (const ext of rankOrder) {
+          const candidate = root + ext;
+          const found = dts.find(
+            f =>
+              f.endsWith(candidate.replace(/^.*dist\//, ''))
+              || f === candidate
+              || f.endsWith(candidate),
+          );
+          if (found) return toExportPath(found);
+        }
+        return prioritizedDts; // fallback
+      };
+      const importTypes = pickTypesForScript(importBranch.default);
+      const requireTypes = pickTypesForScript(requireBranch.default);
+      if (importBranch.default && importTypes) importBranch.types = importTypes;
+      if (requireBranch.default && requireTypes)
+        requireBranch.types = requireTypes;
+    }
+    // 需要保证每个层级对象中 types 排在首位。
+    // JS 对象的枚举顺序：先是按插入顺序（除去整数键），因此我们在组装时先插入一个带 types 的对象副本，确保顺序。
+    function withTypesFirst(obj: Record<string, any>): Record<string, any> {
+      if (!obj.types) return obj; // 没有 types 无需处理
+      const reordered: Record<string, any> = { types: obj.types };
+      for (const k of Object.keys(obj)) {
+        if (k === 'types') continue;
+        reordered[k] = obj[k];
+      }
+      return reordered;
+    }
+
+    // 先重排 import/require 分支内部顺序
+    const importBranchOrdered = withTypesFirst(importBranch);
+    const requireBranchOrdered = withTypesFirst(requireBranch);
+
+    const finalExport: Record<string, any> = {};
+    if (Object.keys(requireBranchOrdered).length)
+      finalExport.require = requireBranchOrdered;
+    if (Object.keys(importBranchOrdered).length)
+      finalExport.import = importBranchOrdered;
+    if (importBranchOrdered.default)
+      finalExport.default = withTypesFirst({ ...importBranchOrdered });
+    else if (requireBranchOrdered.default)
+      finalExport.default = withTypesFirst({ ...requireBranchOrdered });
+    return withTypesFirst(finalExport);
+  } else {
+    // exportTypes 关闭时，不在 exports 中写入 types，由 TS 自行解析
+    if (packageType === 'commonjs') {
+      if (resultFlat.require) resultFlat.default = resultFlat.require;
+      else if (resultFlat.import) resultFlat.default = resultFlat.import;
+    } else {
+      if (resultFlat.import) resultFlat.default = resultFlat.import;
+      else if (resultFlat.require) resultFlat.default = resultFlat.require;
+    }
+    return resultFlat;
+  }
+}
+
+function createSimpleConditionalExportFromOutputs(
+  outputFiles: Map<string, OutputFileGroup>,
+  entryPath: string,
+  conditions: string[],
+  packageType: string | undefined,
+  exportTypes: boolean,
+): Record<string, any> {
+  const result: Record<string, any> = {};
+  const normalizedPath = entryPath.startsWith('./')
+    ? entryPath
+    : `./${entryPath}`;
+
+  for (const condition of conditions) {
+    const conditionKey = JSON.stringify({ [condition]: true });
+    const group = findOutputGroup(outputFiles, normalizedPath, conditionKey);
+    if (group) {
+      result[condition] = createExportEntryFromOutputs(
+        outputFiles,
+        normalizedPath,
+        conditionKey,
+        packageType,
+        exportTypes,
+      );
+    }
+  }
+
+  const defaultConditionKey = conditions.includes('default')
+    ? JSON.stringify({ default: true })
+    : '{}';
+  const defaultGroup = findOutputGroup(
+    outputFiles,
+    normalizedPath,
+    defaultConditionKey,
+  );
+  if (defaultGroup) {
+    result.default = createExportEntryFromOutputs(
+      outputFiles,
+      normalizedPath,
+      defaultConditionKey,
+      packageType,
+      exportTypes,
+    );
+  }
+
+  return result;
+}
+
+function createNestedConditionalExportFromOutputs(
+  outputFiles: Map<string, OutputFileGroup>,
+  entryPath: string,
+  conditionGroups: Record<string, string[]>,
+  packageType: string | undefined,
+  exportTypes: boolean,
+): Record<string, any> {
+  const groupNames = Object.keys(conditionGroups);
+  const normalizedPath = entryPath.startsWith('./')
+    ? entryPath
+    : `./${entryPath}`;
+
+  function buildLevel(
+    level: number,
+    currentConditions: Record<string, string>,
+  ): Record<string, any> {
+    if (level >= groupNames.length) {
+      const conditionKey = JSON.stringify(currentConditions);
+      const group = findOutputGroup(outputFiles, normalizedPath, conditionKey);
+      if (!group) return {};
+      return createExportEntryFromOutputs(
+        outputFiles,
+        normalizedPath,
+        conditionKey,
+        packageType,
+        exportTypes,
+      );
+    }
+
+    const groupName = groupNames[level];
+    const groupConditions = conditionGroups[groupName];
+    const result: Record<string, any> = {};
+
+    for (const condition of groupConditions) {
+      const nextConditions = { ...currentConditions, [groupName]: condition };
+      const exportEntry = buildLevel(level + 1, nextConditions);
+      if (exportEntry && Object.keys(exportEntry).length > 0) {
+        result[condition] = exportEntry;
+      }
+    }
+
+    if (!result.default && groupConditions.includes('default')) {
+      const defaultConditions = {
+        ...currentConditions,
+        [groupName]: 'default',
+      };
+      const defaultEntry = buildLevel(level + 1, defaultConditions);
+      if (defaultEntry && Object.keys(defaultEntry).length > 0) {
+        result.default = defaultEntry;
+      }
+    }
+
+    return result;
+  }
+
+  return buildLevel(0, {});
+}
+
+function getLeafExportFollowingAllDefaults(
+  rootExport: any,
+  conditionGroups: Record<string, string[]>,
+): any | undefined {
+  if (!rootExport || typeof rootExport !== 'object') return undefined;
+  const groupNames = Object.keys(conditionGroups);
+  let current = rootExport;
+  for (const group of groupNames) {
+    const groupConditions = conditionGroups[group];
+    if (!groupConditions.includes('default')) return undefined;
+    if (!current || typeof current !== 'object') return undefined;
+    current = current.default;
+  }
+  return current && typeof current === 'object' ? current : undefined;
+}
+
+async function runPublintCheck(projectRoot: string) {
+  try {
+    console.log('Running publint check...');
+    const { messages, pkg } = await publint({
+      pkgDir: projectRoot,
+      strict: true,
+    });
+
+    if (messages.length > 0) {
+      console.error('Publint found issues:');
+      let hasError = false;
+      for (const message of messages) {
+        if (message.type === 'error') {
+          hasError = true;
+        }
+        console.error(`  ${message.type}: ${formatMessage(message, pkg)}`);
+      }
+      if (hasError) {
+        throw new Error(
+          `Publint check failed with ${messages.length} issue(s)`,
+        );
+      }
+    }
+
+    console.log('Publint check passed');
+  } catch (error) {
+    if (
+      error instanceof Error
+      && error.message.includes('Publint check failed')
+    ) {
+      throw error;
+    }
+    throw new Error(`Publint check failed: ${error}`);
+  }
+}
+
+async function runAttwCheck(
+  projectRoot: string,
+  profile: 'strict' | 'node16' | 'esmOnly' = 'node16',
+  level: 'error' | 'warn' = 'error',
+) {
+  const attwProfiles: Record<string, string[]> = {
+    strict: [],
+    node16: ['node10'],
+    esmOnly: ['node10', 'node16-cjs'],
+  };
+
+  try {
+    console.log('Running @arethetypeswrong/core check...');
+
+    const tempDir = await mkdtemp(join(tmpdir(), 'utc-attw-'));
+
+    try {
+      // Create tarball using npm pack
+      const { stdout: tarballInfo } = await promisify(exec)(
+        `npm pack --json --pack-destination ${tempDir}`,
+        { encoding: 'utf8', cwd: projectRoot },
+      );
+
+      const parsed = JSON.parse(tarballInfo);
+      if (!Array.isArray(parsed) || !parsed[0]?.filename) {
+        throw new Error('Invalid npm pack output format');
+      }
+
+      const tarballPath = join(tempDir, parsed[0].filename as string);
+      const tarball = await readFile(tarballPath);
+
+      // Create package from tarball data
+      const pkg = createPackageFromTarballData(tarball);
+      const checkResult = await checkPackage(pkg);
+
+      if (checkResult.types !== false && checkResult.problems) {
+        // Filter problems based on profile
+        const problems = checkResult.problems.filter(problem => {
+          // Only apply profile filter to problems that have resolutionKind
+          if ('resolutionKind' in problem) {
+            return !attwProfiles[profile]?.includes(problem.resolutionKind);
+          }
+          // Include all other problem types
+          return true;
+        });
+
+        if (problems.length > 0) {
+          const problemList = problems.map(formatAttwProblem).join('\n');
+          const problemMessage = `ATTW found type issues:\n${problemList}`;
+
+          if (level === 'error') {
+            throw new Error(problemMessage);
+          } else {
+            console.warn(problemMessage);
+          }
+        }
+      }
+
+      console.log('ATTW check passed');
+    } finally {
+      // Clean up temp directory
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  } catch (error) {
+    if (
+      error instanceof Error
+      && error.message.includes('ATTW found type issues')
+    ) {
+      throw error;
+    }
+    throw new Error(`ATTW check failed: ${error}`);
+  }
+}
+
+function formatAttwProblem(problem: Problem): string {
+  const resolutionKind =
+    'resolutionKind' in problem ? ` (${problem.resolutionKind})` : '';
+  const entrypoint = 'entrypoint' in problem ? ` at ${problem.entrypoint}` : '';
+
+  switch (problem.kind) {
+    case 'NoResolution':
+      return `  ❌ No resolution${resolutionKind}${entrypoint}`;
+
+    case 'UntypedResolution':
+      return `  ⚠️  Untyped resolution${resolutionKind}${entrypoint}`;
+
+    case 'FalseESM':
+      return `  🔄 False ESM: Types indicate ESM (${problem.typesModuleKind}) but implementation is CJS (${problem.implementationModuleKind})\n     Types: ${problem.typesFileName} | Implementation: ${problem.implementationFileName}`;
+
+    case 'FalseCJS':
+      return `  🔄 False CJS: Types indicate CJS (${problem.typesModuleKind}) but implementation is ESM (${problem.implementationModuleKind})\n     Types: ${problem.typesFileName} | Implementation: ${problem.implementationFileName}`;
+
+    case 'CJSResolvesToESM':
+      return `  ⚡ CJS resolves to ESM${resolutionKind}${entrypoint}`;
+
+    case 'NamedExports': {
+      const missingExports =
+        problem.missing?.length > 0
+          ? ` Missing: ${problem.missing.join(', ')}`
+          : '';
+      const allMissing = problem.isMissingAllNamed
+        ? ' (all named exports missing)'
+        : '';
+      return `  📤 Named exports problem${allMissing}${missingExports}\n     Types: ${problem.typesFileName} | Implementation: ${problem.implementationFileName}`;
+    }
+
+    case 'FallbackCondition':
+      return `  🎯 Fallback condition used${resolutionKind}${entrypoint}`;
+
+    case 'FalseExportDefault':
+      return `  🎭 False export default\n     Types: ${problem.typesFileName} | Implementation: ${problem.implementationFileName}`;
+
+    case 'MissingExportEquals':
+      return `  📝 Missing export equals\n     Types: ${problem.typesFileName} | Implementation: ${problem.implementationFileName}`;
+
+    case 'InternalResolutionError':
+      return `  💥 Internal resolution error in ${problem.fileName} (${problem.resolutionOption})\n     Module: ${problem.moduleSpecifier} | Mode: ${problem.resolutionMode}`;
+
+    case 'UnexpectedModuleSyntax':
+      return `  📋 Unexpected module syntax in ${problem.fileName}\n     Expected: ${problem.moduleKind} | Found: ${problem.syntax === 99 ? 'ESM' : 'CJS'}`;
+
+    case 'CJSOnlyExportsDefault':
+      return `  🏷️  CJS only exports default in ${problem.fileName}`;
+
+    default:
+      return `  ❓ Unknown problem: ${JSON.stringify(problem)}`;
+  }
 }
