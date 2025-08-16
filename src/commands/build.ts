@@ -21,6 +21,7 @@ import {
 import { promisify } from 'util';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
+import { binHelper } from '../plugins/bin-helper.js';
 import { compileConstant } from '../plugins/compile-constant.js';
 import { normalizeMatchPath, resolveGlob } from '../shared.js';
 
@@ -184,7 +185,10 @@ async function buildSingle(
         return exports;
       },
     },
-    plugins: [compileConstant(config, activeConditions)],
+    plugins: [
+      compileConstant(config, activeConditions),
+      ...(isBin ? [binHelper()] : []),
+    ],
     inputOptions: {
       resolve: buildResolveConfig(activeConditions),
       onLog: (level, log, defaultHandler) => {

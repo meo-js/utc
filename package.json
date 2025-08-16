@@ -70,6 +70,7 @@
     "@meojs/pkg-utils": "^1.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
+    "magic-string": "^0.30.17",
     "minimatch": "^10.0.3",
     "nano-spawn": "^1.0.2",
     "publint": "^0.3.12",
