@@ -4,6 +4,7 @@ import {
   type Problem,
 } from '@arethetypeswrong/core';
 import { glob } from '@meojs/cfgs';
+import { readPackageJson, type PackageJson } from '@meojs/pkg-utils';
 import { exec } from 'child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -31,6 +32,7 @@ cli.command(
   () => {},
   async args => {
     const config = await resolveConfigFromArgv(args);
+    const pkg = await readPackageJson(config.project);
 
     const conditionCombinations = getConditionCombinations(
       config.web.build.conditions,
@@ -41,26 +43,22 @@ cli.command(
     } catch (error) {}
 
     const needExports = config.web.build.exports;
-    const entry = await getEntry(config);
+    const { entry, bin } = await getEntry(pkg, config);
     const buildResults: BuildResult[] = [];
 
-    if (conditionCombinations.length === 0) {
-      const result = await buildSingle(config, {});
+    for (const combination of conditionCombinations) {
+      const result = await buildSingle(entry, config, combination);
       buildResults.push(result);
-    } else {
-      for (const combination of conditionCombinations) {
-        const result = await buildSingle(config, combination);
-        buildResults.push(result);
-      }
     }
 
+    const binResults = await buildBin(bin, config, pkg);
+
     if (needExports) {
-      await generatePackageExports(
-        config.project,
-        Array.isArray(entry) ? entry : [entry],
-        config,
-        buildResults,
-      );
+      await generatePackageExports(config.project, entry, config, buildResults);
+    }
+
+    if (binResults.length !== 0) {
+      await generatePackageJsonBin(config.project, bin, binResults, pkg);
     }
 
     await generateCompileConstantDts(config);
@@ -72,17 +70,59 @@ cli.command(
   },
 );
 
+async function buildBin(
+  bin: Record<string, string>,
+  config: ResolvedConfig,
+  pkg: PackageJson,
+) {
+  const keys = Object.keys(bin);
+  const count = keys.length;
+  if (count === 0) {
+    return [];
+  }
+
+  const conditions = config.web.build.bin?.activeConditions ?? {};
+  let activeConditions: Record<string, string | boolean>;
+  if (Array.isArray(conditions)) {
+    activeConditions = conditions.reduce(
+      (acc, name) => {
+        acc[name] = true;
+        return acc;
+      },
+      {} as Record<string, string | boolean>,
+    );
+  } else {
+    activeConditions = conditions;
+  }
+
+  const results: BuildResult[] = [];
+
+  if (count === 1 && keys[0] === pkg.name) {
+    results.push(
+      await buildSingle([bin[keys[0]]], config, activeConditions, '_bin'),
+    );
+  } else {
+    for (const key in bin) {
+      results.push(
+        await buildSingle([bin[key]], config, activeConditions, `_bin/${key}`),
+      );
+    }
+  }
+
+  return results;
+}
+
 function getConditionCombinations(
   conditions: string[] | Record<string, string[]> | undefined,
 ) {
-  if (!conditions) return [];
+  if (!conditions) return [{}];
 
   if (Array.isArray(conditions)) {
     return conditions.map(condition => ({ [condition]: true }));
   }
 
   const groups = Object.entries(conditions);
-  if (groups.length === 0) return [];
+  if (groups.length === 0) return [{}];
 
   const combinations: Array<Record<string, string>> = [];
 
@@ -115,11 +155,13 @@ interface BuildResult {
 }
 
 async function buildSingle(
+  entry: string[],
   config: ResolvedConfig,
   activeConditions: Record<string, string | boolean>,
+  binPath?: string,
 ): Promise<BuildResult> {
-  const entry = await getEntry(config);
-  const outDirSuffix = generateOutDirSuffix(activeConditions);
+  const isBin = binPath != null;
+  const outDirSuffix = isBin ? binPath : generateOutDirSuffix(activeConditions);
 
   const outDir = outDirSuffix ? `dist/${outDirSuffix}` : 'dist';
   let finalChunks!: TsdownChunks;
@@ -128,12 +170,12 @@ async function buildSingle(
     cwd: config.project,
     entry,
     sourcemap: true,
-    dts: true,
+    dts: !isBin,
     treeshake: true,
     target: 'esnext',
     platform: 'neutral',
     unbundle: true,
-    format: ['esm', 'cjs'],
+    format: isBin ? 'esm' : ['esm', 'cjs'],
     outDir,
     hooks: {},
     exports: {
@@ -156,9 +198,18 @@ async function buildSingle(
   };
 
   if (config.web.build.entry == null) {
-    (<TsdownHooks>options.hooks)['build:prepare'] = async ctx => {
-      ctx.options.entry = await getEntry(config);
-    };
+    // TODO: 未完成的逻辑，用于 watch
+    if (isBin) {
+      // TODO
+    } else {
+      (<TsdownHooks>options.hooks)['build:prepare'] = async ctx => {
+        const { entry } = await getEntry(
+          await readPackageJson(config.project),
+          config,
+        );
+        ctx.options.entry = entry;
+      };
+    }
   }
 
   await build(options);
@@ -193,7 +244,6 @@ function buildResolveConfig(
     ([, v]) => v !== false && v != null && v !== '',
   );
 
-  // 收集段（条件后缀的每一部分）
   const segments: string[] = [];
   for (const [key, value] of conditionEntries) {
     if (typeof value === 'boolean') {
@@ -204,7 +254,6 @@ function buildResolveConfig(
   }
 
   if (segments.length === 0) {
-    // 无条件，回退到默认解析
     return {
       extensionAlias: {
         '.js': ['.js', '.ts'],
@@ -218,7 +267,6 @@ function buildResolveConfig(
     };
   }
 
-  // 生成后缀 (.a.b, .b.a, .a, .b ...)
   const suffixes: string[] = [];
   const seen = new Set<string>();
   for (let len = segments.length; len > 0; len--) {
@@ -231,7 +279,6 @@ function buildResolveConfig(
     }
   }
 
-  // 构造 extensionAlias (优先最具体)
   const extensionAlias: Record<string, string[]> = {};
   const extensions: string[] = [];
 
@@ -252,7 +299,6 @@ function buildResolveConfig(
         `${s}.${baseMap[baseExt as keyof typeof baseMap].ts}`,
       );
     }
-    // 回退原始
     aliases.push(
       `.${baseExt}`,
       `.${baseMap[baseExt as keyof typeof baseMap].ts}`,
@@ -265,7 +311,7 @@ function buildResolveConfig(
   }
   extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
 
-  return { extensionAlias, extensions };
+  return { extensionAlias, extensions, conditionNames: [...segments, '...'] };
 }
 
 function getPermutations<T>(arr: T[], length: number): T[][] {
@@ -280,6 +326,60 @@ function getPermutations<T>(arr: T[], length: number): T[][] {
     }
   }
   return result;
+}
+
+async function generatePackageJsonBin(
+  projectRoot: string,
+  originalBin: Record<string, string>,
+  binResults: BuildResult[],
+  pkg: PackageJson,
+) {
+  const pkgPath = join(projectRoot, 'package.json');
+
+  const binKeys = Object.keys(originalBin);
+
+  if (binKeys.length === 1 && binKeys[0] === pkg.name) {
+    const result = binResults[0];
+    const binFile = findExecutableFile(result);
+    pkg.bin = binFile;
+  } else {
+    if (binKeys.length === 0) {
+      delete pkg.bin;
+    } else {
+      const binField: Record<string, string> = {};
+      for (let i = 0; i < binKeys.length; i++) {
+        const key = binKeys[i];
+        const result = binResults[i];
+        const binFile = findExecutableFile(result);
+        binField[key] = binFile ?? '';
+      }
+      pkg.bin = binField;
+    }
+  }
+
+  await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+}
+
+function findExecutableFile(result: BuildResult): string | undefined {
+  const { chunks, outDir } = result;
+
+  for (const chunkArray of Object.values(chunks)) {
+    for (const chunk of chunkArray || []) {
+      if (chunk.type === 'chunk' && chunk.isEntry) {
+        return `./${join(outDir, chunk.fileName).replace(/\\/g, '/')}`;
+      }
+    }
+  }
+
+  for (const chunkArray of Object.values(chunks)) {
+    for (const chunk of chunkArray || []) {
+      if (chunk.type === 'chunk') {
+        return `./${join(outDir, chunk.fileName).replace(/\\/g, '/')}`;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 async function generateCompileConstantDts(config: ResolvedConfig) {
@@ -311,12 +411,22 @@ async function generateCompileConstantDts(config: ResolvedConfig) {
   await writeFile(file, output, 'utf8');
 }
 
-async function getEntry(config: ResolvedConfig) {
+async function getEntry(
+  pkg: PackageJson,
+  config: ResolvedConfig,
+): Promise<{ entry: string[]; bin: Record<string, string> }> {
+  let entry: string[];
   if (config.web.build.entry) {
-    return config.web.build.entry;
+    entry = Array.isArray(config.web.build.entry)
+      ? config.web.build.entry
+      : [config.web.build.entry];
   } else {
-    return await getAllRootModules(config);
+    entry = await getAllRootModules(config);
   }
+
+  const bin = await getAllBinModules(pkg, config);
+
+  return { entry, bin };
 }
 
 async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
@@ -352,9 +462,7 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
         const match = fullText.match(/^\/\*\*[\s\S]*?\*\//);
         if (match) moduleCommentBlocks.push(match[0]);
       }
-    } catch (e) {
-      // 忽略解析异常
-    }
+    } catch (e) {}
 
     if (!moduleCommentBlocks.length) continue;
 
@@ -375,6 +483,60 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
     const rel = relative(projectRoot, p);
     return rel.startsWith('.') ? rel : `./${rel}`;
   });
+}
+
+async function getAllBinModules(
+  pkg: PackageJson,
+  config: ResolvedConfig,
+): Promise<Record<string, string>> {
+  const projectRoot = config.project;
+  const sourceGlobs = config.web.source;
+
+  const files = await resolveGlob(sourceGlobs, projectRoot, `*.${scriptExt}`);
+
+  if (files.length === 0) {
+    return {};
+  }
+
+  const project = new Project({});
+  const binEntries: Record<string, string> = {};
+
+  for (const file of files) {
+    const sourceFile = project.addSourceFileAtPath(file);
+    let moduleCommentBlocks: string[] = [];
+    try {
+      const statements = sourceFile.getStatements();
+      if (statements.length) {
+        const first = statements[0];
+        const leading = first.getLeadingCommentRanges();
+        for (const r of leading) {
+          const text = r.getText();
+          if (/^\/\*\*/.test(text)) {
+            moduleCommentBlocks.push(text);
+          }
+        }
+      } else {
+        const fullText = sourceFile.getFullText();
+        const match = fullText.match(/^\/\*\*[\s\S]*?\*\//);
+        if (match) moduleCommentBlocks.push(match[0]);
+      }
+    } catch (e) {}
+
+    if (!moduleCommentBlocks.length) continue;
+
+    const doc = moduleCommentBlocks[0];
+    const binMatches = doc.matchAll(/@bin(?:\s+([^*\s]+))?/g);
+    for (const binMatch of binMatches) {
+      const binId = binMatch[1]?.trim() ?? pkg.name!;
+      const relativePath = relative(projectRoot, file);
+      const finalPath = relativePath.startsWith('.')
+        ? relativePath
+        : `./${relativePath}`;
+      binEntries[binId] = finalPath;
+    }
+  }
+
+  return binEntries;
 }
 
 export function toEntrySubPathMap(paths: string[], projectRoot: string) {
@@ -458,9 +620,7 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
           custom = sub;
         }
       }
-    } catch (e) {
-      // 忽略解析错误
-    }
+    } catch (e) {}
 
     const auto = toEntrySubPath(root, file);
     const final = custom ?? auto;

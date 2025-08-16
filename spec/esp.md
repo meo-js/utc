@@ -72,6 +72,60 @@ export const value = 1;
 export const value = 1;
 ```
 
+## 可执行文件
+
+有的包机制允许你通过模块创建可执行文件。
+
+这些模块需在文档注释中添加 `@bin` 标记，例如：
+
+`bin.js`
+
+```js
+/**
+ * This is a bin entrypoint.
+ *
+ * @bin id
+ */
+```
+
+`id` 可以省略，`@bin` 标记可以和 `@module` 等其它标记混用，且可以同时存在多个不同 `id` 的 `@bin` 标记。
+
+构建工具可以检查此标记以自动生成包机制所需的声明，例如 `Npm Package`：
+
+`package.json`
+
+```json
+{
+  "bin": "./dist/bin.js"
+}
+```
+
+如果不省略 `id`，且包名是 `cli`，那么：
+
+`cli.js`
+
+```js
+/**
+ * This is a bin entrypoint.
+ *
+ * @bin
+ * @bin build
+ */
+```
+
+应该生成：
+
+`package.json`
+
+```json
+{
+  "bin": {
+    "cli": "./dist/bin.js",
+    "build": "./dist/bin.js"
+  }
+}
+```
+
 ## 推荐包结构
 
 本章描述一种推荐的包结构的组织方式，皆在提高可维护性，并提供对自动化生成工具的支持。

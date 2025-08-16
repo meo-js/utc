@@ -39,9 +39,7 @@
       "program": "${workspaceFolder}/src/cli.ts",
       "cwd": "${workspaceFolder}/example",
       "args": [
-        "build",
-        "--web.source=src",
-        "--web.source=src2"
+        "build"
       ],
       "stopOnEntry": false,
       "watchMode": false

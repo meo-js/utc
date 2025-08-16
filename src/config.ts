@@ -82,6 +82,11 @@ export interface WebBuildConfig {
   entry?: string | string[];
 
   /**
+   * 构建 `bin` 字段入口点的配置。
+   */
+  bin?: WebBuildBinConfig;
+
+  /**
    * 严格模式
    *
    * 开启以下检查：
@@ -118,6 +123,15 @@ export interface WebBuildConfig {
    * @default false
    */
   exportTypes?: boolean;
+}
+
+export interface WebBuildBinConfig {
+  /**
+   * 构建时激活的条件
+   *
+   * @default 构建工具内部的默认值。
+   */
+  activeConditions?: string[] | Record<string, string>;
 }
 
 export type ResolvedConfig = Config & {
