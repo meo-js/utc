@@ -1,4 +1,3 @@
-import { startVitest } from 'vitest/node';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv } from '../config.js';
 
@@ -24,6 +23,7 @@ cli.command(
     const { bench } = args;
 
     try {
+      const { startVitest } = await import('vitest/node');
       const vitest = await startVitest(bench ? 'benchmark' : 'test', [], {
         root: config.project,
       });

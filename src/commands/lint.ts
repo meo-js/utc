@@ -3,12 +3,9 @@ import lint from '@commitlint/lint';
 import load from '@commitlint/load';
 import { glob as globExt } from '@meojs/cfgs';
 import { execSync } from 'child_process';
-import { ESLint } from 'eslint';
 import { readFile } from 'fs/promises';
 import { braceExpand } from 'minimatch';
-import * as prettier from 'prettier';
 import { exit } from 'process';
-import stylelint from 'stylelint';
 import { cli } from '../cli.js';
 import { resolveConfigFromArgv, type ResolvedConfig } from '../config.js';
 import { filterFiles, normalizeGlob, resolveGlob } from '../shared.js';
@@ -172,6 +169,7 @@ async function lintWithESLint(
   projectPath: string = process.cwd(),
 ): Promise<boolean> {
   try {
+    const { ESLint } = await import('eslint');
     const eslint = new ESLint({
       cwd: projectPath,
     });
@@ -194,6 +192,7 @@ async function lintWithESLint(
 
 async function lintWithPrettier(files: string[]): Promise<boolean> {
   try {
+    const prettier = await import('prettier');
     const checkFile = async (file: string): Promise<boolean> => {
       const options = await prettier.resolveConfig(file);
       const fileInfo = await prettier.getFileInfo(file);
@@ -228,6 +227,7 @@ async function lintWithStylelint(
   patterns: string[],
   projectPath: string,
 ): Promise<boolean> {
+  const stylelint = (await import('stylelint')).default;
   const result = await stylelint.lint({
     files: patterns,
     cwd: projectPath,
