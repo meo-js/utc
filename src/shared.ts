@@ -1,7 +1,7 @@
 import { stat } from 'fs/promises';
 import { glob } from 'glob';
 import { filter } from 'minimatch';
-import { extname, isAbsolute, join, relative, sep } from 'path';
+import { isAbsolute, join, relative, sep } from 'path';
 
 export const simpleGitHooksConfigPath = new URL(
   import.meta.resolve('../assets/simple-git-hooks.json'),
@@ -44,7 +44,11 @@ export async function resolveGlob(
   extPattern: string,
 ): Promise<string[]> {
   const allFiles = new Set<string>();
-  for (const pattern of await normalizeGlob(patterns, '*', projectPath)) {
+  for (const pattern of await normalizeGlob(
+    patterns,
+    extPattern,
+    projectPath,
+  )) {
     const files = await glob(pattern, {
       cwd: projectPath,
       absolute: true,
@@ -66,20 +70,25 @@ export async function normalizeGlob(
   // 文件必须带扩展名，否则不存在时会被认为是目录
   const normalized: string[] = [];
   for (const pattern of patterns) {
+    let isGlob = false;
     let isDirectory = false;
     let isFile = false;
+
     const absPattern = toAbsoluteIfBase(pattern, basePath);
+
     try {
-      const stats = await stat(absPattern);
-      isDirectory = stats.isDirectory();
-      isFile = stats.isFile();
-    } catch (error) {
-      isDirectory = false;
-      isFile = false;
-    }
-    const ext = extname(pattern);
-    if (isDirectory || (!isFile && ext === '')) {
-      const dirPattern = ensureRelative(pattern, basePath);
+      if (isGlobPattern(pattern)) {
+        isGlob = true;
+      } else {
+        const stats = await stat(absPattern);
+        isDirectory = stats.isDirectory();
+        isFile = stats.isFile();
+      }
+    } catch (error) {}
+
+    const dirPattern = ensureRelative(pattern, basePath);
+
+    if (isDirectory) {
       normalized.push(`${dirPattern.replace(/\\/g, '/')}/**/*.${extPattern}`);
     } else {
       normalized.push(ensureRelative(pattern, basePath).replace(/\\/g, '/'));

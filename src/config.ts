@@ -44,6 +44,11 @@ export interface WebConfig {
   build?: WebBuildConfig;
 
   /**
+   * 测试配置。
+   */
+  test?: WebTestConfig;
+
+  /**
    * Use CSS.
    *
    * @default false
@@ -134,6 +139,17 @@ export interface WebBuildBinConfig {
   activeConditions?: string[] | Record<string, string>;
 }
 
+export interface WebTestConfig {
+  /**
+   * 排除文件。
+   *
+   * 支持文件与 Glob patterns。
+   *
+   * @default "node_modules", ".git", "dist"。
+   */
+  exclude?: string[];
+}
+
 export type ResolvedConfig = Config & {
   project: string;
   web: WebConfig & {
@@ -145,6 +161,7 @@ export type ResolvedConfig = Config & {
           'strict' | 'compileConstantDts' | 'exports' | 'exportTypes'
         >
       >;
+    test: WebTestConfig & Required<Pick<WebTestConfig, 'exclude'>>;
     css: boolean;
     tailwindcss: boolean;
     jsdoc: 'none' | 'loose' | 'strict';
@@ -177,6 +194,9 @@ export async function resolveConfig(
           compileConstantDts: 'src/compile-constant.d.ts',
           exports: true,
           exportTypes: false,
+        },
+        test: {
+          exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
         },
       },
     },

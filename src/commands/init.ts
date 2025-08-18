@@ -80,6 +80,7 @@ cli.command(
     const actions: Record<string, (project: string) => Promise<void>> = {
       'git-hooks': installGitHooks,
       'javascript': installJavascriptDeps,
+      'test': installTestDeps,
       'css': installCssDeps,
       'tailwind': installTailwindDeps,
       'prepare-script': installPrepareScript,
@@ -218,7 +219,7 @@ async function installJavascriptDeps(projectPath: string) {
   return installPeerDepsByFilter(
     projectPath,
     'JavaScript',
-    name => !isCssDep(name) && !isTailwindDep(name),
+    name => !isCssDep(name) && !isTailwindDep(name) && !isTestDep(name),
   );
 }
 
@@ -230,10 +231,16 @@ async function installTailwindDeps(projectPath: string) {
   return installPeerDepsByFilter(projectPath, 'Tailwind CSS', isTailwindDep);
 }
 
+async function installTestDeps(projectPath: string) {
+  return installPeerDepsByFilter(projectPath, 'Test', isTestDep);
+}
+
 const isCssDep = (name: string) =>
   name.startsWith('stylelint') || name.startsWith('postcss');
 
 const isTailwindDep = (name: string) => name.includes('tailwindcss');
+
+const isTestDep = (name: string) => name.includes('vitest');
 
 function collectPeerDepsByFilter(
   include: (name: string) => boolean,

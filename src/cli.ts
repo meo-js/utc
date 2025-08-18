@@ -89,6 +89,7 @@ export const cli = yargs(hideBin(process.argv))
 await import('./commands/init.js');
 await import('./commands/build.js');
 await import('./commands/lint.js');
+await import('./commands/test.js');
 
 const argv = await cli.parseAsync();
 

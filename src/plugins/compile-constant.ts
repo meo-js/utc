@@ -1,9 +1,9 @@
 import { createUnplugin } from 'unplugin';
-import type { ResolvedConfig } from '../config.js';
 
-export function compileConstant(config: ResolvedConfig, activeConditions: Record<string, string | boolean> = {}) {
-  const conditions = config.web.build.conditions;
-
+export function compileConstant(
+  conditions: string[] | Record<string, string[]> | undefined,
+  activeConditions: Record<string, string | boolean> = {},
+) {
   const virtualModules = new Map<string, string>();
   const resolvedIds = new Set<string>();
   const virtualIdPrefix = '\0compile-constant';
@@ -49,7 +49,7 @@ export function compileConstant(config: ResolvedConfig, activeConditions: Record
         return virtualModules.get(id) || null;
       },
     };
-  }).rolldown();
+  });
 }
 
 function toUpper(s: string) {

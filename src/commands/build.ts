@@ -178,6 +178,9 @@ async function buildSingle(
     unbundle: true,
     format: isBin ? 'esm' : ['esm', 'cjs'],
     outDir,
+    define: {
+      'import.meta.vitest': 'undefined',
+    },
     hooks: {},
     exports: {
       customExports(exports, context) {
@@ -186,7 +189,7 @@ async function buildSingle(
       },
     },
     plugins: [
-      compileConstant(config, activeConditions),
+      compileConstant(config.web.build.conditions, activeConditions).rolldown(),
       ...(isBin ? [binHelper()] : []),
     ],
     inputOptions: {
@@ -241,7 +244,7 @@ function generateOutDirSuffix(
   return parts.length > 0 ? parts.join('/') : '';
 }
 
-function buildResolveConfig(
+export function buildResolveConfig(
   activeConditions: Record<string, string | boolean>,
 ) {
   const conditionEntries = Object.entries(activeConditions).filter(

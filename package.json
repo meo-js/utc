@@ -46,7 +46,8 @@
   "peerDependencies": {
     "eslint": "^9.33.0",
     "prettier": "^3.6.2",
-    "stylelint": "^16.23.1"
+    "stylelint": "^16.23.1",
+    "vitest": "4.0.0-beta.8"
   },
   "peerDependenciesMeta": {
     "eslint": {
@@ -56,6 +57,9 @@
       "optional": true
     },
     "stylelint": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },
