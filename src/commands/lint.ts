@@ -241,7 +241,21 @@ async function lintWithStylelint(
   return !result.errored;
 }
 
-async function lintCommitMessage(message: string) {
+async function lintCommitMessage(messageOrFile: string) {
+  let message = messageOrFile;
+  if (messageOrFile === '.git/COMMIT_EDITMSG') {
+    try {
+      const raw = await readFile(messageOrFile, 'utf8');
+      message = raw
+        .split(/\r?\n/)
+        .filter(line => !line.startsWith('#'))
+        .join('\n')
+        .trim();
+    } catch (e) {
+      // ignore and treat as plain message
+    }
+  }
+
   const config = await load({
     'extends': ['@commitlint/config-conventional'],
   });
