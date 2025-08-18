@@ -83,7 +83,8 @@
     "ts-morph": "^26.0.0",
     "tsdown": "^0.14.1",
     "unplugin": "^2.3.6",
-    "yargs": "^18.0.0"
+    "yargs": "^18.0.0",
+    "vitest": "4.0.0-beta.8"
   },
   "devDependencies": {
     "@types/braces": "^3.0.5",
