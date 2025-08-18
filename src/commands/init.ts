@@ -52,6 +52,11 @@ cli.command(
               checked: false,
             },
             {
+              name: 'Test',
+              value: 'test',
+              checked: false,
+            },
+            {
               name: 'CSS',
               value: 'css',
               checked: false,
