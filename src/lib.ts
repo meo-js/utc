@@ -1,11 +1,10 @@
 import { eslint, glob, prettier, stylelint } from '@meojs/cfgs';
 import { braceExpand } from 'minimatch';
 import { cwd } from 'process';
-import * as vitest from 'vitest/config';
-import { buildResolveConfig } from './commands/build.js';
+import type { ViteUserConfig } from 'vitest/config';
 import { resolveConfig, type Config } from './config.js';
 import { compileConstant } from './plugins/compile-constant.js';
-import { normalizeGlob } from './shared.js';
+import { buildResolveConfig, normalizeGlob } from './shared.js';
 
 const { vueExt, scriptExt } = glob;
 
@@ -18,7 +17,7 @@ export async function config(
 export async function config(
   type: 'stylelint',
 ): Promise<ReturnType<typeof stylelint.config>>;
-export async function config(type: 'vitest'): Promise<vitest.ViteUserConfig>;
+export async function config(type: 'vitest'): Promise<ViteUserConfig>;
 export async function config(opts?: Config): Promise<Config>;
 export async function config(
   arg1?: 'prettier' | 'eslint' | 'stylelint' | 'vitest' | Config,
@@ -36,6 +35,7 @@ export async function config(
   } else if (arg1 === 'stylelint') {
     return stylelint.config();
   } else if (arg1 === 'vitest') {
+    const vitest = await import('vitest/config');
     const {
       web: {
         test,

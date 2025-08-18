@@ -20,7 +20,7 @@ const simpleGitHooksConfig = {
 };
 
 // Old version of peer dependencies to remove
-const oldPeerDeps = { 'eslint': '', 'prettier': '', '@meojs/cfgs': '' };
+const oldPeerDeps = {};
 
 cli.command(
   'init',

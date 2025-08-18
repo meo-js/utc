@@ -2,7 +2,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { resolveConfigFromArgv } from './config.js';
 
-export type Argv = typeof cli.argv;
+export type Argv = ReturnType<typeof cli.parseSync>;
 
 export const cli = yargs(hideBin(process.argv))
   .scriptName('utc')

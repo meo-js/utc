@@ -128,3 +128,94 @@ export function isGlobPattern(pattern: string): boolean {
   const globLikeRE = /(^|[^\\])(?:[*?]|\[[^\]]+\]|\{[^}]+\}|[!@+?*]\([^)]*\))/;
   return globLikeRE.test(pattern);
 }
+
+export function buildResolveConfig(
+  activeConditions: Record<string, string | boolean>,
+) {
+  const conditionEntries = Object.entries(activeConditions).filter(
+    ([, v]) => v !== false && v != null && v !== '',
+  );
+
+  const segments: string[] = [];
+  for (const [key, value] of conditionEntries) {
+    if (typeof value === 'boolean') {
+      if (value) segments.push(key); // 使用键名
+    } else if (typeof value === 'string') {
+      segments.push(value);
+    }
+  }
+
+  if (segments.length === 0) {
+    return {
+      extensionAlias: {
+        '.js': ['.js', '.ts'],
+        '.mjs': ['.mjs', '.mts'],
+        '.cjs': ['.cjs', '.cts'],
+        '.jsx': ['.jsx', '.tsx'],
+        '.mjsx': ['.mjsx', '.mtsx'],
+        '.cjsx': ['.cjsx', '.ctsx'],
+      },
+      extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
+    };
+  }
+
+  const suffixes: string[] = [];
+  const seen = new Set<string>();
+  for (let len = segments.length; len > 0; len--) {
+    for (const perm of getPermutations(segments, len)) {
+      const suffix = '.' + perm.join('.');
+      if (!seen.has(suffix)) {
+        seen.add(suffix);
+        suffixes.push(suffix);
+      }
+    }
+  }
+
+  const extensionAlias: Record<string, string[]> = {};
+  const extensions: string[] = [];
+
+  const baseMap: Record<string, { ts: string }> = {
+    js: { ts: 'ts' },
+    mjs: { ts: 'mts' },
+    cjs: { ts: 'cts' },
+    jsx: { ts: 'tsx' },
+    mjsx: { ts: 'mtsx' },
+    cjsx: { ts: 'ctsx' },
+  };
+
+  for (const baseExt of Object.keys(baseMap)) {
+    const aliases: string[] = [];
+    for (const s of suffixes) {
+      aliases.push(
+        `${s}.${baseExt}`,
+        `${s}.${baseMap[baseExt as keyof typeof baseMap].ts}`,
+      );
+    }
+    aliases.push(
+      `.${baseExt}`,
+      `.${baseMap[baseExt as keyof typeof baseMap].ts}`,
+    );
+    extensionAlias[`.${baseExt}`] = aliases;
+  }
+
+  for (const s of suffixes) {
+    extensions.push(`${s}.tsx`, `${s}.ts`, `${s}.jsx`, `${s}.js`, `${s}.json`);
+  }
+  extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
+
+  return { extensionAlias, extensions, conditionNames: [...segments, '...'] };
+}
+
+function getPermutations<T>(arr: T[], length: number): T[][] {
+  if (length === 1) return arr.map(item => [item]);
+
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rest = arr.slice(0, i).concat(arr.slice(i + 1));
+    const perms = getPermutations(rest, length - 1);
+    for (const perm of perms) {
+      result.push([arr[i], ...perm]);
+    }
+  }
+  return result;
+}
