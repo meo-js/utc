@@ -1,0 +1,8 @@
+export default {
+  'recommendations': [
+    'editorconfig.editorconfig',
+    'dbaeumer.vscode-eslint',
+    'esbenp.prettier-vscode',
+    'stylelint.vscode-stylelint',
+  ],
+};

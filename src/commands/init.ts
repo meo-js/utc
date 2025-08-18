@@ -1,7 +1,8 @@
 import { checkbox } from '@inquirer/prompts';
 import { detectPackageManager, writePackageJson } from '@meojs/pkg-utils';
-import { writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import spawn from 'nano-spawn';
+import { dirname, join } from 'path';
 import {
   removeHooks,
   setHooksFromConfig,
@@ -10,9 +11,19 @@ import cliPackageJson from '../../package.json' with { type: 'json' };
 // FIXME: https://github.com/rolldown/tsdown/issues/445
 // import cfgsPackageJson from '@meojs/cfgs/package.json' with { type: 'json' };
 import cfgsPackageJson from '../cfgs-package-json.js';
+import vscodeExtensionsCfg from '../cfgs-vscode-extensions.js';
+import vscodeSettingsCfg from '../cfgs-vscode-settings.js';
 import { cli } from '../cli.js';
 import { hasConfig, resolveConfigFromArgv } from '../config.js';
-import { simpleGitHooksConfigPath } from '../shared.js';
+import {
+  repoEditorconfigTemplatePath,
+  repoEslintConfigTemplatePath,
+  repoPrettierConfigTemplatePath,
+  repoStylelintConfigTemplatePath,
+  repoTsconfigTemplatePath,
+  repoVitestConfigTemplatePath,
+  simpleGitHooksConfigPath,
+} from '../shared.js';
 
 const simpleGitHooksConfig = {
   'pre-commit': '{PM} exec utc lint --staged',
@@ -20,7 +31,7 @@ const simpleGitHooksConfig = {
 };
 
 // Old version of peer dependencies to remove
-const oldPeerDeps = {};
+const oldPeerDeps = { '@meojs/cfgs': '' };
 
 cli.command(
   'init',
@@ -84,16 +95,7 @@ cli.command(
       }
     }
 
-    const actions: Record<string, (project: string) => Promise<void>> = {
-      'git-hooks': installGitHooks,
-      'javascript': installJavascriptDeps,
-      'test': installTestDeps,
-      'css': installCssDeps,
-      'tailwind': installTailwindDeps,
-      'prepare-script': installPrepareScript,
-    };
-
-    await runSelected(selected, config.project, actions);
+    await runInitSelected(selected, config.project);
   },
 );
 
@@ -222,25 +224,8 @@ async function removeDependencies(projectPath: string) {
   }
 }
 
-async function installJavascriptDeps(projectPath: string) {
-  return installPeerDepsByFilter(
-    projectPath,
-    'JavaScript',
-    name => !isCssDep(name) && !isTailwindDep(name) && !isTestDep(name),
-  );
-}
-
-async function installCssDeps(projectPath: string) {
-  return installPeerDepsByFilter(projectPath, 'CSS', isCssDep);
-}
-
-async function installTailwindDeps(projectPath: string) {
-  return installPeerDepsByFilter(projectPath, 'Tailwind CSS', isTailwindDep);
-}
-
-async function installTestDeps(projectPath: string) {
-  return installPeerDepsByFilter(projectPath, 'Test', isTestDep);
-}
+// ---- Dependency classification helpers ----
+// Predicates are defined below; constants created after definitions to avoid TDZ issues.
 
 const isCssDep = (name: string) =>
   name.startsWith('stylelint') || name.startsWith('postcss');
@@ -249,61 +234,204 @@ const isTailwindDep = (name: string) => name.includes('tailwindcss');
 
 const isTestDep = (name: string) => name.includes('vitest');
 
-function collectPeerDepsByFilter(
-  include: (name: string) => boolean,
-): Record<string, string> {
-  const cliPeerDeps = cliPackageJson.peerDependencies || {};
-  const cfgsPeerDeps = cfgsPackageJson.peerDependencies || {};
+// Derived filter constants (after predicate declarations)
+const JS_FILTER = (name: string) =>
+  !isCssDep(name) && !isTailwindDep(name) && !isTestDep(name);
+const CSS_FILTER = isCssDep;
+const TAILWIND_FILTER = isTailwindDep;
+const TEST_FILTER = isTestDep;
 
-  const result: Record<string, string> = {};
-
-  Object.keys(cliPeerDeps)
-    .filter(include)
-    .forEach(name => {
-      result[name] = cliPeerDeps[name as never];
-    });
-
-  Object.keys(cfgsPeerDeps)
-    .filter(include)
-    .forEach(name => {
-      result[name] = cfgsPeerDeps[name as never];
-    });
-
-  return result;
+// Feature descriptor map to reduce branching duplication
+interface FeatureSpec {
+  filter?: (name: string) => boolean; // peer dep filter
+  files?: { target: string; template: string }[]; // config/template files to ensure
+  addCfgs?: boolean; // whether needs @meojs/cfgs dependency
+  removeExtensions?: RegExp[]; // VSCode extension id patterns to remove if feature NOT selected
 }
 
-async function installPeerDepsByFilter(
-  projectPath: string,
-  label: string,
-  include: (name: string) => boolean,
-) {
-  console.log(`Installing ${label} dependencies...`);
+const FEATURE_SPECS: Record<string, FeatureSpec> = {
+  javascript: {
+    filter: JS_FILTER,
+    addCfgs: true,
+    files: [
+      { target: 'tsconfig.json', template: repoTsconfigTemplatePath },
+      { target: 'eslint.config.js', template: repoEslintConfigTemplatePath },
+      {
+        target: 'prettier.config.js',
+        template: repoPrettierConfigTemplatePath,
+      },
+    ],
+    removeExtensions: [/eslint/i, /prettier/i],
+  },
+  css: {
+    filter: CSS_FILTER,
+    files: [
+      {
+        target: 'stylelint.config.js',
+        template: repoStylelintConfigTemplatePath,
+      },
+    ],
+    removeExtensions: [/stylelint/i],
+  },
+  tailwind: { filter: TAILWIND_FILTER },
+  test: {
+    filter: TEST_FILTER,
+    files: [
+      { target: 'vitest.config.js', template: repoVitestConfigTemplatePath },
+    ],
+  },
+  // always copied regardless of selection handled separately (.editorconfig)
+};
 
-  try {
-    const deps = collectPeerDepsByFilter(include);
-
-    if (Object.keys(deps).length === 0) {
-      console.log(`No ${label} peer dependencies found to install.`);
-      return;
+function collectPeerDepsByFilter(include: (name: string) => boolean) {
+  const result: Record<string, string> = {};
+  for (const source of [
+    cliPackageJson.peerDependencies,
+    cfgsPackageJson.peerDependencies,
+  ]) {
+    const deps = source || {};
+    for (const name of Object.keys(deps)) {
+      if (include(name)) result[name] = deps[name as never];
     }
+  }
+  return result;
+}
+// ---- Unified init pipeline ----
+async function runInitSelected(selected: string[], project: string) {
+  // Immediate actions (not part of feature spec)
+  if (selected.includes('git-hooks')) await installGitHooks(project);
+  if (selected.includes('prepare-script')) await installPrepareScript(project);
 
-    await writePackageJson(projectPath, json => {
+  // Build dependency filters & file tasks from specs
+  const filters: ((name: string) => boolean)[] = [];
+  const filesToEnsure: { target: string; template: string }[] = [];
+  let addCfgs = false;
+
+  for (const key of selected) {
+    const spec = FEATURE_SPECS[key];
+    if (!spec) continue;
+    if (spec.filter) filters.push(spec.filter);
+    if (spec.files) filesToEnsure.push(...spec.files);
+    if (spec.addCfgs) addCfgs = true;
+  }
+
+  const mergedDeps: Record<string, string> = {};
+  if (filters.length) {
+    const allDeps = collectPeerDepsByFilter(mergeFilters(filters));
+    Object.assign(mergedDeps, allDeps);
+  }
+  if (addCfgs) {
+    const cfgsVersion = (cliPackageJson.dependencies || {})['@meojs/cfgs'];
+    if (cfgsVersion) mergedDeps['@meojs/cfgs'] = cfgsVersion;
+  }
+
+  let wrote = false;
+  if (Object.keys(mergedDeps).length) {
+    await writePackageJson(project, json => {
       if (!json.devDependencies) json.devDependencies = {};
-      const devDeps = json.devDependencies;
-      for (const [name, version] of Object.entries(deps)) {
-        devDeps[name] = version;
+      const dev = json.devDependencies;
+      let changed = false;
+      for (const [name, version] of Object.entries(mergedDeps)) {
+        if (!dev[name]) {
+          dev[name] = version;
+          changed = true;
+          console.log(`Added devDependency: ${name}@${version}`);
+        }
       }
+      if (!changed) console.log('No new devDependencies to add.');
+      wrote = changed;
       return json;
     });
-
-    console.log(`Updated devDependencies for ${label}.`);
-    await runPmInstall(projectPath);
-
-    console.log(`${label} dependencies installed successfully!`);
-  } catch (error) {
-    console.error(`Error installing ${label} dependencies:`, error);
-    throw error;
   }
+  if (wrote) await runPmInstall(project);
+
+  // Ensure config/template files
+  for (const f of filesToEnsure) {
+    await ensureFile(project, f.target, f.template, f.target);
+  }
+  // Always ensure .editorconfig
+  await ensureFile(
+    project,
+    '.editorconfig',
+    repoEditorconfigTemplatePath,
+    '.editorconfig',
+  );
+
+  await generateVSCodeExtensions(selected, project);
+  await writeVSCodeSettings(project);
+}
+
+function mergeFilters(filters: ((name: string) => boolean)[]) {
+  if (filters.length === 1) return filters[0];
+  return (name: string) => filters.some(f => f(name));
+}
+
+async function ensureFile(
+  projectPath: string,
+  relativeTarget: string,
+  templateAbsPath: string,
+  label: string,
+) {
+  const target = join(projectPath, relativeTarget);
+  // ensure parent directory exists (covers potential nested targets in future)
+  await ensureDir(dirname(target));
+  try {
+    await readFile(target);
+    console.log(`${label} already exists in project, skip copy.`);
+  } catch {
+    const content = await readFile(templateAbsPath, 'utf8');
+    await writeFile(target, content, 'utf8');
+    console.log(`Copied ${label} to project root.`);
+  }
+}
+
+async function generateVSCodeExtensions(
+  selected: string[],
+  projectPath: string,
+) {
+  try {
+    const rec: string[] = [...(vscodeExtensionsCfg.recommendations || [])];
+    // For each feature spec with removeExtensions, if feature NOT selected -> remove patterns
+    for (const [feature, spec] of Object.entries(FEATURE_SPECS)) {
+      if (!spec.removeExtensions) continue;
+      if (selected.includes(feature)) continue; // keep if selected
+      for (const pattern of spec.removeExtensions) removeBy(rec, pattern);
+    }
+
+    const content = JSON.stringify({ recommendations: rec }, null, 2);
+    const dir = join(projectPath, '.vscode');
+    await ensureDir(dir);
+    const file = join(dir, 'extensions.json');
+    await writeFile(file, content + '\n', 'utf8');
+    console.log('Wrote .vscode/extensions.json');
+  } catch (e) {
+    console.error('Failed to write VSCode extensions.json:', e);
+  }
+}
+
+async function writeVSCodeSettings(projectPath: string) {
+  try {
+    const dir = join(projectPath, '.vscode');
+    await ensureDir(dir);
+    const file = join(dir, 'settings.json');
+    const content = JSON.stringify(vscodeSettingsCfg, null, 2);
+    await writeFile(file, content + '\n', 'utf8');
+    console.log('Wrote .vscode/settings.json');
+  } catch (e) {
+    console.error('Failed to write VSCode settings.json:', e);
+  }
+}
+
+function removeBy(arr: string[], pattern: RegExp) {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (pattern.test(arr[i])) arr.splice(i, 1);
+  }
+}
+
+async function ensureDir(path: string) {
+  // dynamic import to avoid adding global fs dependency at top
+  const { mkdir } = await import('fs/promises');
+  await mkdir(path, { recursive: true });
 }
 
 async function installPrepareScript(projectPath: string) {

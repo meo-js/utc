@@ -7,6 +7,30 @@ export const simpleGitHooksConfigPath = new URL(
   import.meta.resolve('../assets/simple-git-hooks.json'),
 ).pathname;
 
+export const repoTsconfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/tsconfig.json'),
+).pathname;
+
+export const repoEditorconfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/.editorconfig'),
+).pathname;
+
+export const repoEslintConfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/eslint.config.js'),
+).pathname;
+
+export const repoPrettierConfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/prettier.config.js'),
+).pathname;
+
+export const repoStylelintConfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/stylelint.config.js'),
+).pathname;
+
+export const repoVitestConfigTemplatePath = new URL(
+  import.meta.resolve('../assets/repo/vitest.config.js'),
+).pathname;
+
 export async function filterFiles(
   files: string[],
   patterns: string[],

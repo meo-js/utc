@@ -1,0 +1,14 @@
+export default {
+  '[javascript][typescript][javascriptreact][typescriptreact]': {
+    'editor.defaultFormatter': 'esbenp.prettier-vscode',
+  },
+  '[html][css][scss][less]': {
+    'editor.defaultFormatter': 'esbenp.prettier-vscode',
+  },
+  '[vue]': {
+    'editor.defaultFormatter': 'esbenp.prettier-vscode',
+  },
+  '[markdown][mdx]': {
+    'editor.defaultFormatter': 'esbenp.prettier-vscode',
+  },
+};
