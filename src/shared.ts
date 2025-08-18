@@ -48,15 +48,15 @@ export async function filterFiles(
 
     // 所有 pattern (inclusive set) 都需要匹配（原语义保持）
     const passPatterns = normalizedPatterns.every(p =>
-      matchTargetCandidates.some(t => filter(p, { dot: true })(t)),
+      matchTargetCandidates.some(t =>
+        filter(p, { dot: true, matchBase: true })(t),
+      ),
     );
     if (!passPatterns) return false;
 
     // 过滤器（进一步收窄）
     const passFilters = normalizedFilters.every(p =>
-      matchTargetCandidates.some(t =>
-        filter(p, { dot: true, matchBase: true })(t),
-      ),
+      matchTargetCandidates.some(t => filter(p, { dot: true })(t)),
     );
     return passFilters;
   });
