@@ -2,7 +2,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { resolveConfigFromArgv } from './config.js';
 
-export type Argv = typeof argv;
+export type Argv = typeof cli.argv;
 
 export const cli = yargs(hideBin(process.argv))
   .scriptName('utc')
@@ -85,15 +85,17 @@ export const cli = yargs(hideBin(process.argv))
   .showHelpOnFail(false)
   .recommendCommands();
 
-// 子命令
-await import('./commands/init.js');
-await import('./commands/build.js');
-await import('./commands/lint.js');
-await import('./commands/test.js');
-
-const argv = await cli.parseAsync();
-
 export async function printDebugInfo(args: Argv) {
   console.log('Cmd Args:', args);
   console.log('Config:', await resolveConfigFromArgv(args));
 }
+
+setTimeout(async () => {
+  // 子命令
+  await import('./commands/init.js');
+  await import('./commands/build.js');
+  await import('./commands/lint.js');
+  await import('./commands/test.js');
+
+  const argv = await cli.parseAsync();
+}, 0);
