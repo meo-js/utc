@@ -486,7 +486,7 @@ export function toEntrySubPathMap(paths: string[], projectRoot: string) {
 
   let root = '';
   if (normalizedFiles.length === 1) {
-    root = projectRoot;
+    root = dirname(normalizedFiles[0]);
   } else {
     const segsList = normalizedFiles.map(p => p.split('/'));
     let common: string[] = [];
