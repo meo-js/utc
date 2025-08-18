@@ -349,6 +349,10 @@ async function getEntry(
     entry = await getAllRootModules(config);
   }
 
+  if (entry.length === 0) {
+    entry.push('./src/index.ts');
+  }
+
   const bin = await getAllBinModules(pkg, config);
 
   return { entry, bin };
