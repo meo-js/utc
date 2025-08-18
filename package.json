@@ -20,12 +20,11 @@
   },
   "type": "module",
   "bin": {
-    "utc": "./dist/cli.mjs"
+    "utc": "./dist/cli.js"
   },
   "exports": {
     ".": {
-      "import": "./dist/lib.mjs",
-      "require": "./dist/lib.cjs",
+      "import": "./dist/lib.js",
       "types": "./dist/lib.d.ts"
     }
   },
