@@ -33,7 +33,7 @@ cli.command(
   () => {},
   async args => {
     const config = await resolveConfigFromArgv(args);
-    const pkg = await readPackageJson(config.project);
+    let pkg = await readPackageJson(config.project);
 
     const conditionCombinations = getConditionCombinations(
       config.web.build.conditions,
@@ -55,7 +55,12 @@ cli.command(
     const binResults = await buildBin(bin, config, pkg);
 
     if (needExports) {
-      await generatePackageExports(config.project, entry, config, buildResults);
+      pkg = await generatePackageExports(
+        config.project,
+        entry,
+        config,
+        buildResults,
+      );
     }
 
     if (binResults.length !== 0) {
@@ -440,7 +445,7 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
   const projectRoot = config.project;
   const sourceGlobs = config.web.source;
 
-  const files = await resolveGlob(sourceGlobs, projectRoot, `*.${scriptExt}`);
+  const files = await resolveGlob(sourceGlobs, projectRoot, scriptExt);
 
   if (files.length === 0) {
     console.warn('未匹配到任何源码文件，跳过入口自动推断。');
@@ -499,7 +504,7 @@ async function getAllBinModules(
   const projectRoot = config.project;
   const sourceGlobs = config.web.source;
 
-  const files = await resolveGlob(sourceGlobs, projectRoot, `*.${scriptExt}`);
+  const files = await resolveGlob(sourceGlobs, projectRoot, scriptExt);
 
   if (files.length === 0) {
     return {};
@@ -676,7 +681,7 @@ async function generatePackageExports(
   entries: string[],
   config: ResolvedConfig,
   buildResults: BuildResult[],
-) {
+): Promise<PackageJson> {
   const pkgPath = join(projectRoot, 'package.json');
   const pkgContent = await readFile(pkgPath, 'utf-8');
   const pkg = JSON.parse(pkgContent);
@@ -801,6 +806,8 @@ async function generatePackageExports(
   pkg.exports['./package.json'] = './package.json';
 
   await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+
+  return pkg;
 }
 
 function collectOutputFiles(

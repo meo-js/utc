@@ -1,5 +1,4 @@
 import { checkbox } from '@inquirer/prompts';
-import cfgsPackageJson from '@meojs/cfgs/package.json' with { type: 'json' };
 import { detectPackageManager, writePackageJson } from '@meojs/pkg-utils';
 import { writeFile } from 'fs/promises';
 import spawn from 'nano-spawn';
@@ -8,6 +7,9 @@ import {
   setHooksFromConfig,
 } from 'simple-git-hooks/simple-git-hooks.js';
 import cliPackageJson from '../../package.json' with { type: 'json' };
+// FIXME: https://github.com/rolldown/tsdown/issues/445
+// import cfgsPackageJson from '@meojs/cfgs/package.json' with { type: 'json' };
+import cfgsPackageJson from '../cfgs-package-json.js';
 import { cli } from '../cli.js';
 import { hasConfig, resolveConfigFromArgv } from '../config.js';
 import { simpleGitHooksConfigPath } from '../shared.js';

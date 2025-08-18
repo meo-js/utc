@@ -116,15 +116,11 @@ async function lintJsFiles(
   } else {
     const [eslintPassed, prettierPassed] = await Promise.all([
       lintWithESLint(
-        await normalizeGlob(
-          config.web.source,
-          `*.${scriptExt}`,
-          config.project,
-        ),
+        await normalizeGlob(config.web.source, `${scriptExt}`, config.project),
         config.project,
       ),
       lintWithPrettier(
-        await resolveGlob(config.web.source, config.project, `*.${scriptExt}`),
+        await resolveGlob(config.web.source, config.project, `${scriptExt}`),
       ),
     ]);
 

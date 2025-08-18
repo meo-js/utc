@@ -55,7 +55,7 @@ export async function resolveGlob(
       nodir: true,
     });
     files
-      .filter(filter(extPattern, { dot: true, matchBase: true }))
+      .filter(filter(`*.${extPattern}`, { dot: true, matchBase: true }))
       .forEach(file => allFiles.add(file));
   }
   return [...allFiles];
