@@ -41,6 +41,7 @@ export async function config(
         test,
         source,
         css,
+        platform,
         build: { conditions },
       },
     } = await resolveConfig();
@@ -56,7 +57,7 @@ export async function config(
         target: 'esnext',
         sourcemap: true,
       },
-      esbuild: { platform: 'neutral' },
+      esbuild: { platform },
       plugins: [compileConstant(conditions, activeConditions).vite()],
       test: {
         includeSource: source,

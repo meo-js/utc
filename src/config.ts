@@ -44,6 +44,14 @@ export interface WebConfig {
   build?: WebBuildConfig;
 
   /**
+   * 构建平台。
+   *
+   * @default "neutral"
+   */
+  // TODO: 应根据条件自动推断平台
+  platform?: 'node' | 'browser' | 'neutral';
+
+  /**
    * 测试配置。
    */
   test?: WebTestConfig;
@@ -161,6 +169,7 @@ export type ResolvedConfig = Config & {
           'strict' | 'compileConstantDts' | 'exports' | 'exportTypes'
         >
       >;
+    platform: 'node' | 'browser' | 'neutral';
     test: WebTestConfig & Required<Pick<WebTestConfig, 'exclude'>>;
     css: boolean;
     tailwindcss: boolean;
@@ -195,6 +204,7 @@ export async function resolveConfig(
           exports: true,
           exportTypes: false,
         },
+        platform: 'neutral',
         test: {
           exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
         },

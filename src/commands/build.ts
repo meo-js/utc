@@ -183,7 +183,7 @@ async function buildSingle(
     dts: !isBin,
     treeshake: true,
     target: 'esnext',
-    platform: 'neutral',
+    platform: config.web.platform,
     unbundle: true,
     format: isBin ? 'esm' : ['esm', 'cjs'],
     outDir,
