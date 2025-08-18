@@ -39,6 +39,8 @@
     "start": "bun src/cli.ts",
     "start:init": "bun src/cli.ts init --project=./example",
     "start:lint": "bun src/cli.ts lint",
+    "build": "tsdown --dts src/lib.ts src/cli.ts",
+    "prepack": "pnpm run build",
     "publish:patch": "pnpm version patch && pnpm publish",
     "publish:minor": "pnpm version minor && pnpm publish",
     "publish:major": "pnpm version major && pnpm publish"
