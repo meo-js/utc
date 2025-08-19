@@ -336,9 +336,16 @@ async function runInitSelected(selected: string[], project: string) {
           dev[name] = version;
           changed = true;
           console.log(`Added devDependency: ${name}@${version}`);
+        } else if (dev[name] !== version) {
+          const oldVersion = dev[name];
+          dev[name] = version;
+          changed = true;
+          console.log(
+            `Updated devDependency: ${name}@${oldVersion} -> ${name}@${version}`,
+          );
         }
       }
-      if (!changed) console.log('No new devDependencies to add.');
+      if (!changed) console.log('All devDependencies are up to date.');
       wrote = changed;
       return json;
     });
