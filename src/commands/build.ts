@@ -176,7 +176,7 @@ async function buildSingle(
   const outDir = outDirSuffix ? `dist/${outDirSuffix}` : 'dist';
   let finalChunks!: TsdownChunks;
 
-  const options: Options = {
+  let options: Options = {
     cwd: config.project,
     entry,
     sourcemap: true,
@@ -225,6 +225,14 @@ async function buildSingle(
         );
         ctx.options.entry = entry;
       };
+    }
+  }
+
+  if (config.web.build.tsdown) {
+    if (typeof config.web.build.tsdown === 'function') {
+      options = await config.web.build.tsdown(options);
+    } else {
+      Object.assign(options, config.web.build.tsdown);
     }
   }
 

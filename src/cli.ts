@@ -53,6 +53,21 @@ export const cli = yargs(hideBin(process.argv))
     type: 'boolean',
     defaultDescription: 'false',
   })
+  // TODO
+  // .option('web.build.bin.activeConditions', {
+  //   describe: 'Active conditions for bin build.',
+  //   type: 'string',
+  // })
+  // TODO
+  // .option('web.build.tsdown', {
+  //   describe: 'Custom tsdown config.',
+  //   type: 'string',
+  // })
+  // TODO
+  // .option('web.test.exclude', {
+  //   describe: 'Exclude patterns for test files.',
+  //   type: 'string',
+  // })
   .option('web.tailwindcss', {
     describe: 'Use Tailwind CSS.',
     type: 'boolean',

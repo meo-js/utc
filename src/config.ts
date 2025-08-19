@@ -1,6 +1,7 @@
 import { glob } from '@meojs/cfgs';
 import { loadConfig, type ResolvableConfig } from 'c12';
 import { cwd } from 'process';
+import type { Options as TsdownOptions } from 'tsdown';
 import type { Argv } from './cli.js';
 
 const { cssExt, htmlExt, scriptExt, vueExt, testSuffix } = glob;
@@ -136,6 +137,11 @@ export interface WebBuildConfig {
    * @default false
    */
   exportTypes?: boolean;
+
+  /**
+   * tsdown 配置。
+   */
+  tsdown?: TsdownOptions | ((options: TsdownOptions) => Promise<TsdownOptions>);
 }
 
 export interface WebBuildBinConfig {
