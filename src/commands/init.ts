@@ -382,14 +382,9 @@ async function ensureFile(
   const target = join(projectPath, relativeTarget);
   // ensure parent directory exists (covers potential nested targets in future)
   await ensureDir(dirname(target));
-  try {
-    await readFile(target);
-    console.log(`${label} already exists in project, skip copy.`);
-  } catch {
-    const content = await readFile(templateAbsPath, 'utf8');
-    await writeFile(target, content, 'utf8');
-    console.log(`Copied ${label} to project root.`);
-  }
+  const content = await readFile(templateAbsPath, 'utf8');
+  await writeFile(target, content, 'utf8');
+  console.log(`Copied ${label} to project root.`);
 }
 
 async function generateVSCodeExtensions(
