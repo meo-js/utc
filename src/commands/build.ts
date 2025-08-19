@@ -4,9 +4,13 @@ import {
   type Problem,
 } from '@arethetypeswrong/core';
 import { glob } from '@meojs/cfgs';
-import { readPackageJson, type PackageJson } from '@meojs/pkg-utils';
+import {
+  detectPackageManager,
+  readPackageJson,
+  type PackageJson,
+} from '@meojs/pkg-utils';
 import { exec } from 'child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { dirname, join, relative } from 'path';
 import { publint } from 'publint';
@@ -1135,6 +1139,10 @@ async function runPublintCheck(projectRoot: string) {
   }
 }
 
+async function getPackageManagerCmd(projectPath: string): Promise<string> {
+  return (await detectPackageManager(projectPath)).cmd;
+}
+
 async function runAttwCheck(
   projectRoot: string,
   profile: 'strict' | 'node16' | 'esmOnly' = 'node16',
@@ -1152,18 +1160,15 @@ async function runAttwCheck(
     const tempDir = await mkdtemp(join(tmpdir(), 'utc-attw-'));
 
     try {
-      // Create tarball using npm pack
-      const { stdout: tarballInfo } = await promisify(exec)(
-        `npm pack --json --pack-destination ${tempDir}`,
-        { encoding: 'utf8', cwd: projectRoot },
-      );
+      // Create tarball
+      const pm = await getPackageManagerCmd(projectRoot);
+      await promisify(exec)(`${pm} pack --pack-destination ${tempDir}`, {
+        encoding: 'utf8',
+        cwd: projectRoot,
+      });
 
-      const parsed = JSON.parse(tarballInfo);
-      if (!Array.isArray(parsed) || !parsed[0]?.filename) {
-        throw new Error('Invalid npm pack output format');
-      }
-
-      const tarballPath = join(tempDir, parsed[0].filename as string);
+      const tarballFiles = await readdir(tempDir);
+      const tarballPath = join(tempDir, tarballFiles[0]);
       const tarball = await readFile(tarballPath);
 
       // Create package from tarball data
