@@ -205,7 +205,7 @@ export async function resolveConfig(
         tailwindcss: false,
         jsdoc: 'loose',
         build: {
-          strict: false,
+          strict: true,
           compileConstantDts: 'src/compile-constant.d.ts',
           exports: true,
           exportTypes: false,
