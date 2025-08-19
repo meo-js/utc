@@ -1,6 +1,6 @@
 {
   "name": "@meojs/utc",
-  "version": "1.18.6",
+  "version": "1.18.7",
   "packageManager": "pnpm@10.14.0",
   "engines": {
     "node": ">=20.19.0"
@@ -71,7 +71,7 @@
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
     "@inquirer/prompts": "^7.8.3",
-    "@meojs/cfgs": "^2.0.47",
+    "@meojs/cfgs": "^2.0.48",
     "@meojs/pkg-utils": "^1.0.3",
     "c12": "^3.2.0",
     "glob": "^11.0.3",
