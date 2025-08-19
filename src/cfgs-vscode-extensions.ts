@@ -4,5 +4,6 @@ export default {
     'dbaeumer.vscode-eslint',
     'esbenp.prettier-vscode',
     'stylelint.vscode-stylelint',
+    'vitest.explorer',
   ],
 };
