@@ -10,6 +10,7 @@ import {
   type PackageJson,
 } from '@meojs/pkg-utils';
 import { exec } from 'child_process';
+import { defu } from 'defu';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { dirname, join, relative } from 'path';
@@ -236,7 +237,7 @@ async function buildSingle(
     if (typeof config.web.build.tsdown === 'function') {
       options = await config.web.build.tsdown(options);
     } else {
-      Object.assign(options, config.web.build.tsdown);
+      options = defu(options, config.web.build.tsdown);
     }
   }
 

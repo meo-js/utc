@@ -1,11 +1,11 @@
 import { eslint, glob, prettier, stylelint } from '@meojs/cfgs';
+import { defu } from 'defu';
 import { braceExpand } from 'minimatch';
 import { cwd } from 'process';
 import type { ViteUserConfig } from 'vitest/config';
 import { resolveConfig, type Config } from './config.js';
 import { compileConstant } from './plugins/compile-constant.js';
 import { buildResolveConfig, normalizeGlob } from './shared.js';
-
 const { vueExt, scriptExt } = glob;
 
 export async function config(
@@ -85,7 +85,7 @@ export async function config(
       if (typeof test.vitest === 'function') {
         options = await test.vitest(options);
       } else {
-        Object.assign(options, test.vitest);
+        options = defu(options, test.vitest);
       }
     }
 
