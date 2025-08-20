@@ -2,6 +2,7 @@ import { glob } from '@meojs/cfgs';
 import { loadConfig, type ResolvableConfig } from 'c12';
 import { cwd } from 'process';
 import type { Options as TsdownOptions } from 'tsdown';
+import type { ViteUserConfig } from 'vitest/config';
 import type { Argv } from './cli.js';
 
 const { cssExt, htmlExt, scriptExt, vueExt, testSuffix } = glob;
@@ -162,6 +163,13 @@ export interface WebTestConfig {
    * @default "node_modules", ".git", "dist"。
    */
   exclude?: string[];
+
+  /**
+   * vitest 配置。
+   */
+  vitest?:
+    | ViteUserConfig
+    | ((options: ViteUserConfig) => Promise<ViteUserConfig>);
 }
 
 export type ResolvedConfig = Config & {

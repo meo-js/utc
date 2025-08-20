@@ -47,7 +47,8 @@ export async function config(
     } = await resolveConfig();
     const activeConditions = {};
     const resolve = buildResolveConfig(activeConditions);
-    return vitest.defineConfig({
+
+    let options: ViteUserConfig = {
       resolve: {
         extensions: resolve.extensions,
         // vite doesn't have extensionAlias
@@ -78,7 +79,17 @@ export async function config(
         },
         css,
       },
-    });
+    };
+
+    if (test.vitest) {
+      if (typeof test.vitest === 'function') {
+        options = await test.vitest(options);
+      } else {
+        Object.assign(options, test.vitest);
+      }
+    }
+
+    return vitest.defineConfig(options);
   } else {
     return arg1;
   }

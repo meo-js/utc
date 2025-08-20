@@ -64,6 +64,11 @@ export const cli = yargs(hideBin(process.argv))
   //   type: 'string',
   // })
   // TODO
+  // .option('web.test.vitest', {
+  //   describe: 'Custom vitest config.',
+  //   type: 'string',
+  // })
+  // TODO
   // .option('web.test.exclude', {
   //   describe: 'Exclude patterns for test files.',
   //   type: 'string',
