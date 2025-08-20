@@ -607,7 +607,7 @@ export function toEntrySubPath(root: string, path: string) {
 
 async function generatePackageExports(
   projectRoot: string,
-  entries: string[],
+  entry: string[],
   config: ResolvedConfig,
   buildResults: BuildResult[],
 ): Promise<PackageJson> {
@@ -615,8 +615,9 @@ async function generatePackageExports(
   const pkgContent = await readFile(pkgPath, 'utf-8');
   const pkg = JSON.parse(pkgContent);
 
+  const entries = await resolveGlob(entry, projectRoot, scriptExt);
   const subPathMap = toEntrySubPathMap(entries, projectRoot);
-  const outputFiles = collectOutputFiles(entries, buildResults);
+  const outputFiles = collectOutputFiles(entries, buildResults, projectRoot);
   const exportsField = buildExportsField(
     subPathMap,
     config,
@@ -742,32 +743,18 @@ async function generatePackageExports(
 function collectOutputFiles(
   entries: string[],
   buildResults: BuildResult[],
+  projectRoot: string,
 ): Map<string, OutputFileGroup> {
   const outputFiles = new Map<string, OutputFileGroup>();
-
-  // Precompute entry names (basename without extension) -> original entry path
-  const entryNameMap = new Map<string, string>();
-  for (const e of entries) {
-    entryNameMap.set(getEntryName(e), e.startsWith('./') ? e : `./${e}`);
-  }
 
   for (const result of buildResults) {
     const conditionKey = JSON.stringify(result.activeConditions);
 
     for (const chunks of Object.values(result.chunks)) {
       for (const chunk of chunks || []) {
-        if (chunk.type !== 'chunk') continue;
+        if (chunk.type !== 'chunk' || !chunk.facadeModuleId) continue;
         const fileName = chunk.fileName;
-
-        // Accept runtime or helper chunks only if explicitly listed as entry (skip non-entry)
-        // We only map files whose basename (before any .d.* or extension) matches a known entry name
-        const baseMatch = fileName.match(
-          /([^/]+?)(?:\.d)?\.(?:m?c?js|[cm]?ts)$/,
-        );
-        if (!baseMatch) continue;
-        const base = baseMatch[1];
-        const entryPath = entryNameMap.get(base);
-        if (!entryPath) continue;
+        const entryPath = normalizeMatchPath(chunk.facadeModuleId, projectRoot);
 
         const key = `${entryPath}-${conditionKey}`;
         const fullPath = join(result.outDir, fileName).replace(/\\/g, '/');
@@ -790,15 +777,6 @@ interface OutputFileGroup {
   entryPath: string;
   condition: string;
   files: Set<string>;
-}
-
-function getEntryName(entryPath: string): string {
-  const relativePath = entryPath.replace(/^\.\//, '');
-  const withoutExt = relativePath.replace(
-    /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/,
-    '',
-  );
-  return withoutExt.split('/').pop() || 'index';
 }
 
 function buildExportsField(
@@ -850,8 +828,8 @@ function findOutputGroup(
   condition: string,
 ): OutputFileGroup | undefined {
   const normalizedPath = entryPath.startsWith('./')
-    ? entryPath
-    : `./${entryPath}`;
+    ? entryPath.slice(2)
+    : entryPath;
   return outputFiles.get(`${normalizedPath}-${condition}`);
 }
 
