@@ -1,5 +1,6 @@
 import { glob } from '@meojs/cfgs';
-import { loadConfig, type ResolvableConfig } from 'c12';
+import { resolveWorkspacePath } from '@meojs/pkg-utils';
+import { loadConfig, type LoadConfigOptions, type ResolvableConfig } from 'c12';
 import { cwd } from 'process';
 import type { Options as TsdownOptions } from 'tsdown';
 import type { ViteUserConfig } from 'vitest/config';
@@ -200,13 +201,12 @@ export async function resolveConfig(
   project: string = cwd(),
   overrides?: ResolvableConfig<Config>,
 ) {
-  const { config } = await loadConfig({
-    cwd: project,
+  const options: LoadConfigOptions<Config> = {
     name: CFG_NAME,
     packageJson: true,
     overrides: overrides,
     defaults: {
-      project: cwd(),
+      project,
       web: {
         source: [`src`],
         css: false,
@@ -224,7 +224,23 @@ export async function resolveConfig(
         },
       },
     },
+  };
+
+  let { config, _configFile } = await loadConfig({
+    ...options,
+    cwd: project,
   });
+
+  if (_configFile == null) {
+    try {
+      const workspacePath = await resolveWorkspacePath(project);
+      const { config: _config } = await loadConfig({
+        ...options,
+        cwd: workspacePath,
+      });
+      config = _config;
+    } catch (error) {}
+  }
 
   return config as ResolvedConfig;
 }
