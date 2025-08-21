@@ -3,10 +3,7 @@ import { resolveWorkspace } from '@meojs/pkg-utils';
 import { defu } from 'defu';
 import { braceExpand } from 'minimatch';
 import { normalize, resolve } from 'path';
-import {
-  type TestProjectConfiguration,
-  type ViteUserConfig,
-} from 'vitest/config';
+import type { TestProjectConfiguration, ViteUserConfig } from 'vitest/config';
 import { initializeActiveConditions } from './commands/build.js';
 import {
   hasConfig,
@@ -115,7 +112,6 @@ async function toVitestConfig(
     esbuild: { platform },
     plugins: [compileConstant(conditions, _activeConditions).vite()],
     test: {
-      projects,
       includeSource: source,
       exclude: test.exclude,
       benchmark: {
@@ -135,6 +131,7 @@ async function toVitestConfig(
           sharedOptions,
           vitest.defineConfig({
             test: {
+              projects,
               coverage: {
                 enabled: true,
                 include: await normalizeGlob(
