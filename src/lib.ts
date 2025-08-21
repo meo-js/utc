@@ -90,7 +90,7 @@ async function toVitestConfig(
           const config = await resolveConfig(packagePath);
           projects.push({
             extends: true,
-            ...defu(project, toVitestConfig(config, true)),
+            ...defu(project, await toVitestConfig(config, true)),
           });
         } else {
           projects.push({
