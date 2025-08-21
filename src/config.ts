@@ -282,7 +282,7 @@ export async function hasConfig(
     cwd: project,
   });
 
-  if (_configFile) {
+  if (!_configFile) {
     if (includeWorkspace) {
       const workspace = await resolveWorkspace(project);
       const { _configFile } = await loadConfig({
