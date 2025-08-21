@@ -116,6 +116,7 @@ setTimeout(async () => {
   await import('./commands/build.js');
   await import('./commands/lint.js');
   await import('./commands/test.js');
+  await import('./commands/ai.js');
 
   const argv = await cli.parseAsync();
 }, 0);
