@@ -14,7 +14,7 @@ import cfgsPackageJson from '../cfgs-package-json.js';
 import vscodeExtensionsCfg from '../cfgs-vscode-extensions.js';
 import vscodeSettingsCfg from '../cfgs-vscode-settings.js';
 import { cli } from '../cli.js';
-import { hasConfig, resolveConfigFromArgv } from '../config.js';
+import { resolveConfigFromArgv } from '../config.js';
 import {
   repoEditorconfigTemplatePath,
   repoEslintConfigTemplatePath,
@@ -36,64 +36,48 @@ const oldPeerDeps = { '@meojs/cfgs': '' };
 cli.command(
   'init',
   'Initialize project.',
-  argv =>
-    argv.option('interactive', {
-      alias: 'i',
-      describe: 'Run in interactive mode.',
-      type: 'boolean',
-      default: false,
-    }),
+  argv => {},
   async args => {
     const config = await resolveConfigFromArgv(args);
     const selected = [] as string[];
 
-    if (args.interactive || !(await hasConfig(args.project))) {
-      selected.push(
-        ...(await checkbox({
-          message: 'Select features to initialize:',
-          choices: [
-            {
-              name: 'Git Hooks',
-              value: 'git-hooks',
-              checked: true,
-            },
-            {
-              name: 'JavaScript',
-              value: 'javascript',
-              checked: false,
-            },
-            {
-              name: 'Test',
-              value: 'test',
-              checked: false,
-            },
-            {
-              name: 'CSS',
-              value: 'css',
-              checked: false,
-            },
-            {
-              name: 'Tailwind CSS',
-              value: 'tailwind',
-              checked: false,
-            },
-            {
-              name: 'Prepare Script',
-              value: 'prepare-script',
-              checked: true,
-            },
-          ],
-        })),
-      );
-    } else {
-      selected.push('git-hooks', 'javascript', 'prepare-script');
-      if (config.web.css) {
-        selected.push('css');
-      }
-      if (config.web.tailwindcss) {
-        selected.push('tailwind');
-      }
-    }
+    selected.push(
+      ...(await checkbox({
+        message: 'Select features to initialize:',
+        choices: [
+          {
+            name: 'Git Hooks',
+            value: 'git-hooks',
+            checked: true,
+          },
+          {
+            name: 'JavaScript',
+            value: 'javascript',
+            checked: false,
+          },
+          {
+            name: 'Test',
+            value: 'test',
+            checked: false,
+          },
+          {
+            name: 'CSS',
+            value: 'css',
+            checked: false,
+          },
+          {
+            name: 'Tailwind CSS',
+            value: 'tailwind',
+            checked: false,
+          },
+          {
+            name: 'Prepare Script',
+            value: 'prepare-script',
+            checked: true,
+          },
+        ],
+      })),
+    );
 
     await runInitSelected(selected, config.project);
   },

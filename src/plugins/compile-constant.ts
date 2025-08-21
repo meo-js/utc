@@ -11,9 +11,17 @@ export function compileConstant(
   if (conditions) {
     if (Array.isArray(conditions)) {
       const id = 'compile-constant';
+
       const constants = Object.fromEntries(
-        conditions.map(c => [toUpper(c), Boolean(activeConditions[c])]),
+        conditions.map(c => {
+          return [toUpper(c), Boolean(activeConditions[c])];
+        }),
       );
+
+      if ('DEFAULT' in constants && !Object.values(constants).includes(true)) {
+        constants.DEFAULT = true;
+      }
+
       const code = Object.entries(constants)
         .map(([k, v]) => `export const ${k} = ${v};`)
         .join('\n');
@@ -25,8 +33,18 @@ export function compileConstant(
         const id = `compile-constant/${group}`;
         const activeCondition = activeConditions[group];
         const constants = Object.fromEntries(
-          list.map(c => [toUpper(c), c === activeCondition]),
+          list.map(c => {
+            return [toUpper(c), c === activeCondition];
+          }),
         );
+
+        if (
+          'DEFAULT' in constants
+          && !Object.values(constants).includes(true)
+        ) {
+          constants.DEFAULT = true;
+        }
+
         const code = Object.entries(constants)
           .map(([k, v]) => `export const ${k} = ${v};`)
           .join('\n');

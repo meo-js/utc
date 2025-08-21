@@ -243,3 +243,17 @@ function getPermutations<T>(arr: T[], length: number): T[][] {
   }
   return result;
 }
+
+export function conditionsToPlatform(
+  conditions: string[],
+  defaultValue: 'node' | 'browser' | 'neutral',
+): 'node' | 'browser' | 'neutral' {
+  const hasNode = conditions.includes('node');
+  const hasBrowser = conditions.includes('browser');
+
+  return (hasNode && hasBrowser) || (!hasNode && !hasBrowser)
+    ? defaultValue
+    : hasNode
+      ? 'node'
+      : 'browser';
+}

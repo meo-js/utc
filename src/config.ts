@@ -1,16 +1,22 @@
 import { glob } from '@meojs/cfgs';
-import { resolveWorkspacePath } from '@meojs/pkg-utils';
+import { resolveWorkspace } from '@meojs/pkg-utils';
 import { loadConfig, type LoadConfigOptions, type ResolvableConfig } from 'c12';
 import { cwd } from 'process';
 import type { Options as TsdownOptions } from 'tsdown';
 import type { ViteUserConfig } from 'vitest/config';
 import type { Argv } from './cli.js';
+import { conditionsToPlatform } from './shared.js';
 
 const { cssExt, htmlExt, scriptExt, vueExt, testSuffix } = glob;
 
 export const CFG_NAME = 'utc';
 
 export interface Config {
+  /**
+   * 从其他配置继承。
+   */
+  extends?: string | string[];
+
   /**
    * Project path.
    *
@@ -47,12 +53,19 @@ export interface WebConfig {
   build?: WebBuildConfig;
 
   /**
-   * 构建平台。
+   * 开发时的平台；构建时的默认平台。
    *
-   * @default "neutral"
+   * @default 如果提供了 {@link activeConditions} 且存在 `node` 或 `browser` 条件，
+   *          则自动根据条件推断，若不存在或这两个条件都存在，则默认为 `neutral`。
    */
-  // TODO: 应根据条件自动推断平台
   platform?: 'node' | 'browser' | 'neutral';
+
+  /**
+   * 开发时激活的额外条件。
+   *
+   * @default 如果提供了 {@link platform} 则自动推断。
+   */
+  activeConditions?: string[] | Record<string, string>;
 
   /**
    * 测试配置。
@@ -148,9 +161,16 @@ export interface WebBuildConfig {
 
 export interface WebBuildBinConfig {
   /**
-   * 构建时激活的条件
+   * 构建平台。
    *
-   * @default 构建工具内部的默认值。
+   * @default "node"
+   */
+  platform?: 'node' | 'browser' | 'neutral';
+
+  /**
+   * 构建时激活的额外条件
+   *
+   * @default 根据 {@link platform} 自动推断。
    */
   activeConditions?: string[] | Record<string, string>;
 }
@@ -183,7 +203,9 @@ export type ResolvedConfig = Config & {
           WebBuildConfig,
           'strict' | 'compileConstantDts' | 'exports' | 'exportTypes'
         >
-      >;
+      > & {
+        bin: WebBuildBinConfig & Required<Pick<WebBuildBinConfig, 'platform'>>;
+      };
     platform: 'node' | 'browser' | 'neutral';
     test: WebTestConfig & Required<Pick<WebTestConfig, 'exclude'>>;
     css: boolean;
@@ -197,13 +219,17 @@ export async function resolveConfigFromArgv(cmdArgv: Argv) {
   return resolveConfig(cmdArgv.project, argvConfig);
 }
 
+const BASE_OPTIONS: LoadConfigOptions<Config> = {
+  name: CFG_NAME,
+  packageJson: true,
+};
+
 export async function resolveConfig(
   project: string = cwd(),
   overrides?: ResolvableConfig<Config>,
 ) {
   const options: LoadConfigOptions<Config> = {
-    name: CFG_NAME,
-    packageJson: true,
+    ...BASE_OPTIONS,
     overrides: overrides,
     defaults: {
       project,
@@ -217,8 +243,8 @@ export async function resolveConfig(
           compileConstantDts: 'src/compile-constant.d.ts',
           exports: true,
           exportTypes: false,
+          bin: {},
         },
-        platform: 'neutral',
         test: {
           exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
         },
@@ -233,30 +259,100 @@ export async function resolveConfig(
 
   if (_configFile == null) {
     try {
-      const workspacePath = await resolveWorkspacePath(project);
+      const workspace = await resolveWorkspace(project);
       const { config: _config } = await loadConfig({
         ...options,
-        cwd: workspacePath,
+        cwd: workspace.rootDir,
       });
       config = _config;
     } catch (error) {}
   }
 
+  config = resolvePlatformConditions(config as ResolvedConfig);
+
   return config as ResolvedConfig;
 }
 
-export async function hasConfig(project: string = cwd()) {
-  try {
-    await loadConfig({
-      cwd: project,
-      name: CFG_NAME,
-      packageJson: true,
-      configFileRequired: true,
-    });
-    return true;
-  } catch (error) {
-    return false;
+export async function hasConfig(
+  project: string = cwd(),
+  includeWorkspace: boolean,
+) {
+  const { _configFile } = await loadConfig({
+    ...BASE_OPTIONS,
+    cwd: project,
+  });
+
+  if (_configFile) {
+    if (includeWorkspace) {
+      const workspace = await resolveWorkspace(project);
+      const { _configFile } = await loadConfig({
+        ...BASE_OPTIONS,
+        cwd: workspace.rootDir,
+      });
+      return _configFile != null;
+    } else {
+      return false;
+    }
   }
+
+  return true;
+}
+
+function resolvePlatformConditions(config: ResolvedConfig): ResolvedConfig {
+  const { web } = config;
+  let {
+    activeConditions,
+    platform,
+    build: {
+      bin: {
+        activeConditions: binActiveConditions,
+        platform: binPlatform,
+      } = {},
+    } = {},
+  } = web;
+
+  let result = _resolvePlatformConditions(platform, activeConditions);
+  web.activeConditions = result.activeConditions;
+  web.platform = result.platform;
+
+  binPlatform ??= 'node';
+  result = _resolvePlatformConditions(binPlatform, binActiveConditions);
+  web.build.bin.activeConditions = result.activeConditions;
+  web.build.bin.platform = result.platform;
+
+  return config;
+}
+
+function _resolvePlatformConditions(
+  platform?: 'node' | 'browser' | 'neutral',
+  activeConditions?: string[] | Record<string, string>,
+): {
+  platform: 'node' | 'browser' | 'neutral';
+  activeConditions?: string[] | Record<string, string>;
+} {
+  if (activeConditions && platform) {
+    return { platform, activeConditions };
+  }
+
+  if (platform) {
+    return {
+      platform,
+      activeConditions: platform === 'neutral' ? undefined : [platform],
+    };
+  }
+
+  const conditions = [];
+
+  if (Array.isArray(activeConditions)) {
+    conditions.push(...activeConditions);
+  } else if (typeof activeConditions === 'object') {
+    conditions.push(...Object.values(activeConditions));
+  }
+
+  return {
+    platform: conditionsToPlatform(conditions, 'neutral'),
+    activeConditions,
+  };
 }
 
 function parseArgvToConfig(argv: Argv): Config {

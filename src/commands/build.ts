@@ -30,6 +30,7 @@ import { binHelper } from '../plugins/bin-helper.js';
 import { compileConstant } from '../plugins/compile-constant.js';
 import {
   buildResolveConfig,
+  conditionsToPlatform,
   normalizeMatchPath,
   resolveGlob,
 } from '../shared.js';
@@ -96,19 +97,8 @@ async function buildBin(
     return [];
   }
 
-  const conditions = config.web.build.bin?.activeConditions ?? {};
-  let activeConditions: Record<string, string | boolean>;
-  if (Array.isArray(conditions)) {
-    activeConditions = conditions.reduce(
-      (acc, name) => {
-        acc[name] = true;
-        return acc;
-      },
-      {} as Record<string, string | boolean>,
-    );
-  } else {
-    activeConditions = conditions;
-  }
+  let activeConditions: Record<string, string | boolean> =
+    initializeActiveConditions(config.web.build.bin.activeConditions);
 
   const results: BuildResult[] = [];
 
@@ -125,6 +115,25 @@ async function buildBin(
   }
 
   return results;
+}
+
+export function initializeActiveConditions(
+  activeConditionsConfig?: string[] | Record<string, string>,
+) {
+  const conditions = activeConditionsConfig ?? {};
+  let activeConditions: Record<string, string | boolean>;
+  if (Array.isArray(conditions)) {
+    activeConditions = conditions.reduce(
+      (acc, name) => {
+        acc[name] = true;
+        return acc;
+      },
+      {} as Record<string, string | boolean>,
+    );
+  } else {
+    activeConditions = conditions;
+  }
+  return activeConditions;
 }
 
 function getConditionCombinations(
@@ -181,6 +190,14 @@ async function buildSingle(
   const outDir = outDirSuffix ? `dist/${outDirSuffix}` : 'dist';
   let finalChunks!: TsdownChunks;
 
+  const resolveConfig = buildResolveConfig(activeConditions);
+  const platform = isBin
+    ? config.web.build.bin.platform
+    : conditionsToPlatform(
+        resolveConfig.conditionNames ?? [],
+        config.web.platform,
+      );
+
   let options: Options = {
     cwd: config.project,
     entry,
@@ -188,7 +205,7 @@ async function buildSingle(
     dts: !isBin,
     treeshake: true,
     target: 'esnext',
-    platform: config.web.platform,
+    platform: platform,
     unbundle: true,
     format: isBin ? 'esm' : ['esm', 'cjs'],
     outDir,
@@ -207,7 +224,7 @@ async function buildSingle(
       ...(isBin ? [binHelper()] : []),
     ],
     inputOptions: {
-      resolve: buildResolveConfig(activeConditions),
+      resolve: resolveConfig,
       onLog: (level, log, defaultHandler) => {
         if (log.code === 'UNRESOLVED_IMPORT') {
           defaultHandler('error', log);
