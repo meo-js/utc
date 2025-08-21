@@ -3,9 +3,7 @@ import { resolveWorkspace } from '@meojs/pkg-utils';
 import { defu } from 'defu';
 import { braceExpand } from 'minimatch';
 import { normalize, resolve } from 'path';
-import { cwd } from 'process';
 import {
-  defineProject,
   type TestProjectConfiguration,
   type ViteUserConfig,
 } from 'vitest/config';
@@ -47,15 +45,18 @@ export async function config(
   } else if (arg1 === 'stylelint') {
     return stylelint.config();
   } else if (arg1 === 'vitest') {
-    const vitest = await import('vitest/config');
     const config = await resolveConfig();
-    return vitest.defineConfig(toVitestConfig(config));
+    return toVitestConfig(config, false);
   } else {
     return arg1;
   }
 }
 
-async function toVitestConfig(config: ResolvedConfig): Promise<ViteUserConfig> {
+async function toVitestConfig(
+  config: ResolvedConfig,
+  isProject: boolean,
+): Promise<ViteUserConfig> {
+  const vitest = await import('vitest/config');
   const {
     project,
     web: {
@@ -79,7 +80,7 @@ async function toVitestConfig(config: ResolvedConfig): Promise<ViteUserConfig> {
     if (normalize(resolve(workspace.rootDir)) === normalize(resolve(project))) {
       projects = [];
       for (const packagePath of workspace.packages) {
-        const project = defineProject({
+        const project = vitest.defineProject({
           test: {
             root: packagePath,
           },
@@ -89,7 +90,7 @@ async function toVitestConfig(config: ResolvedConfig): Promise<ViteUserConfig> {
           const config = await resolveConfig(packagePath);
           projects.push({
             extends: true,
-            ...defu(project, toVitestConfig(config)),
+            ...defu(project, toVitestConfig(config, true)),
           });
         } else {
           projects.push({
@@ -101,7 +102,7 @@ async function toVitestConfig(config: ResolvedConfig): Promise<ViteUserConfig> {
     }
   } catch (error) {}
 
-  let options: ViteUserConfig = {
+  const sharedOptions = vitest.defineProject({
     resolve: {
       extensions: resolveCfg.extensions,
       // vite doesn't have extensionAlias
@@ -120,20 +121,32 @@ async function toVitestConfig(config: ResolvedConfig): Promise<ViteUserConfig> {
       benchmark: {
         includeSource: source,
       },
-      coverage: {
-        enabled: true,
-        include: await normalizeGlob(
-          source,
-          `{${[scriptExt, vueExt].flatMap(v => braceExpand(v)).join(',')}}`,
-          cwd(),
-        ),
-      },
       typecheck: {
         enabled: true,
       },
       css,
     },
-  };
+  });
+
+  let options = isProject
+    ? vitest.defineProject(sharedOptions)
+    : vitest.defineConfig(
+        defu(
+          sharedOptions,
+          vitest.defineConfig({
+            test: {
+              coverage: {
+                enabled: true,
+                include: await normalizeGlob(
+                  source,
+                  `{${[scriptExt, vueExt].flatMap(v => braceExpand(v)).join(',')}}`,
+                  project,
+                ),
+              },
+            },
+          }),
+        ),
+      );
 
   if (test.vitest) {
     if (typeof test.vitest === 'function') {
