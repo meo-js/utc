@@ -31,6 +31,7 @@ import { compileConstant } from '../plugins/compile-constant.js';
 import {
   buildResolveConfig,
   conditionsToPlatform,
+  initializeActiveConditions,
   normalizeMatchPath,
   resolveGlob,
 } from '../shared.js';
@@ -115,25 +116,6 @@ async function buildBin(
   }
 
   return results;
-}
-
-export function initializeActiveConditions(
-  activeConditionsConfig?: string[] | Record<string, string>,
-) {
-  const conditions = activeConditionsConfig ?? {};
-  let activeConditions: Record<string, string | boolean>;
-  if (Array.isArray(conditions)) {
-    activeConditions = conditions.reduce(
-      (acc, name) => {
-        acc[name] = true;
-        return acc;
-      },
-      {} as Record<string, string | boolean>,
-    );
-  } else {
-    activeConditions = conditions;
-  }
-  return activeConditions;
 }
 
 function getConditionCombinations(

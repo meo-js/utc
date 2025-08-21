@@ -4,7 +4,6 @@ import { defu } from 'defu';
 import { braceExpand } from 'minimatch';
 import { normalize, resolve } from 'path';
 import type { TestProjectConfiguration, ViteUserConfig } from 'vitest/config';
-import { initializeActiveConditions } from './commands/build.js';
 import {
   hasConfig,
   resolveConfig,
@@ -12,7 +11,11 @@ import {
   type ResolvedConfig,
 } from './config.js';
 import { compileConstant } from './plugins/compile-constant.js';
-import { buildResolveConfig, normalizeGlob } from './shared.js';
+import {
+  buildResolveConfig,
+  initializeActiveConditions,
+  normalizeGlob,
+} from './shared.js';
 const { vueExt, scriptExt } = glob;
 
 export async function config(

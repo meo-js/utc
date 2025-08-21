@@ -153,6 +153,25 @@ export function isGlobPattern(pattern: string): boolean {
   return globLikeRE.test(pattern);
 }
 
+export function initializeActiveConditions(
+  activeConditionsConfig?: string[] | Record<string, string>,
+) {
+  const conditions = activeConditionsConfig ?? {};
+  let activeConditions: Record<string, string | boolean>;
+  if (Array.isArray(conditions)) {
+    activeConditions = conditions.reduce(
+      (acc, name) => {
+        acc[name] = true;
+        return acc;
+      },
+      {} as Record<string, string | boolean>,
+    );
+  } else {
+    activeConditions = conditions;
+  }
+  return activeConditions;
+}
+
 export function buildResolveConfig(
   activeConditions: Record<string, string | boolean>,
 ) {
