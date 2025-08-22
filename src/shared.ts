@@ -2,34 +2,34 @@ import { stat } from 'fs/promises';
 import { glob } from 'glob';
 import { filter } from 'minimatch';
 import { isAbsolute, join, relative, sep } from 'path';
+import { fileURLToPath } from 'url';
 
-export const simpleGitHooksConfigPath = new URL(
+export const simpleGitHooksConfigPath = fileURLToPath(
   import.meta.resolve('../assets/simple-git-hooks.json'),
-).pathname;
-
-export const repoTsconfigTemplatePath = new URL(
+);
+export const repoTsconfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/tsconfig.json'),
-).pathname;
+);
 
-export const repoEditorconfigTemplatePath = new URL(
+export const repoEditorconfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/.editorconfig'),
-).pathname;
+);
 
-export const repoEslintConfigTemplatePath = new URL(
+export const repoEslintConfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/eslint.config.js'),
-).pathname;
+);
 
-export const repoPrettierConfigTemplatePath = new URL(
+export const repoPrettierConfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/prettier.config.js'),
-).pathname;
+);
 
-export const repoStylelintConfigTemplatePath = new URL(
+export const repoStylelintConfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/stylelint.config.js'),
-).pathname;
+);
 
-export const repoVitestConfigTemplatePath = new URL(
+export const repoVitestConfigTemplatePath = fileURLToPath(
   import.meta.resolve('../assets/repo/vitest.config.js'),
-).pathname;
+);
 
 export async function filterFiles(
   files: string[],
