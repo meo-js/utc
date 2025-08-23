@@ -13,7 +13,7 @@ import { exec } from 'child_process';
 import { defu } from 'defu';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { dirname, join, relative } from 'path';
+import { dirname, join, relative, sep } from 'path';
 import { publint } from 'publint';
 import { formatMessage } from 'publint/utils';
 import { Project } from 'ts-morph';
@@ -420,10 +420,12 @@ async function getAllRootModules(config: ResolvedConfig): Promise<string[]> {
     return [];
   }
 
-  return rootEntries.map(p => {
-    const rel = relative(projectRoot, p);
-    return rel.startsWith('.') ? rel : `./${rel}`;
-  });
+  return rootEntries
+    .map(p => {
+      const rel = relative(projectRoot, p);
+      return rel.startsWith('.') ? rel : `./${rel}`;
+    })
+    .map(v => v.split(sep).join('/'));
 }
 
 async function getAllBinModules(
@@ -473,7 +475,7 @@ async function getAllBinModules(
       const finalPath = relativePath.startsWith('.')
         ? relativePath
         : `./${relativePath}`;
-      binEntries[binId] = finalPath;
+      binEntries[binId] = finalPath.split(sep).join('/');
     }
   }
 
@@ -617,7 +619,7 @@ async function generatePackageExports(
 
   const entries = await resolveGlob(entry, projectRoot, scriptExt);
   const subPathMap = toEntrySubPathMap(entries, projectRoot);
-  const outputFiles = collectOutputFiles(entries, buildResults, projectRoot);
+  const outputFiles = collectOutputFiles(buildResults, projectRoot);
   const exportsField = buildExportsField(
     subPathMap,
     config,
@@ -741,7 +743,6 @@ async function generatePackageExports(
 }
 
 function collectOutputFiles(
-  entries: string[],
   buildResults: BuildResult[],
   projectRoot: string,
 ): Map<string, OutputFileGroup> {
