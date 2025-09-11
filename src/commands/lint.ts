@@ -72,12 +72,14 @@ cli.command(
 
 function getStagedFiles(): string[] {
   try {
-    const stagedFiles = execSync('git diff --cached --name-only', {
+    const stagedFiles = execSync('git diff --cached --name-status', {
       encoding: 'utf8',
     })
       .trim()
       .split('\n')
-      .filter(file => file.length > 0);
+      .filter(line => line.length > 0)
+      .filter(line => !line.startsWith('D\t')) // 排除删除的文件
+      .map(line => line.split('\t')[1]); // 获取文件名部分
 
     return stagedFiles;
   } catch (error) {
