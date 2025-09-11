@@ -36,13 +36,18 @@
 - `use` - React Hooks 函数。
 - `acquire` - 函数返回的是 `Disposable` 对象。
 - `when` - 函数返回的是 `Observable` 对象。
+- `ensure` - 当同名函数是返回一个新对象时，用于返回一个缓存的对象。
 
 示例：
 
 ```ts
+// acquire example.
 function acquire(): FileHandle;
 function acquireSocket(): Socket;
-function when(): Observable;
+
+// ensure example.
+function createObject(): Object;
+function ensureObject(): Object;
 ```
 
 当函数有相似的作用时，统一以一致的后缀命名：
@@ -61,6 +66,10 @@ function writeSync(): string;
 // when sync is default.
 function read(): Promise<string>;
 function readAsync(): Promise<string>;
+
+// into example.
+function encode(): T;
+function encodeInto(out: T): void;
 ```
 
 #### 常见误区
