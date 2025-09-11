@@ -1,6 +1,6 @@
 {
   "name": "@meojs/utc",
-  "version": "1.18.47",
+  "version": "1.18.48",
   "packageManager": "pnpm@10.14.0",
   "engines": {
     "node": ">=20.19.0"
