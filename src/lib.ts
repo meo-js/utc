@@ -123,6 +123,9 @@ async function toVitestConfig(
       typecheck: {
         enabled: true,
       },
+      expect: {
+        requireAssertions: true,
+      },
       css,
     },
   });
