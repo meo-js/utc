@@ -75,7 +75,7 @@
     "@commitlint/lint": "^19.8.1",
     "@commitlint/load": "^19.8.1",
     "@inquirer/prompts": "^7.8.4",
-    "@meojs/cfgs": "^2.0.63",
+    "@meojs/cfgs": "^2.0.64",
     "@meojs/pkg-utils": "^1.0.40",
     "c12": "^3.2.0",
     "defu": "^6.1.4",
