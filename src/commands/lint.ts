@@ -79,7 +79,18 @@ function getStagedFiles(): string[] {
       .split('\n')
       .filter(line => line.length > 0)
       .filter(line => !line.startsWith('D\t')) // 排除删除的文件
-      .map(line => line.split('\t')[1]); // 获取文件名部分
+      .map(line => {
+        const parts = line.split('\t');
+        const status = parts[0];
+
+        // 处理重命名情况：R<score> oldname newname
+        if (status.startsWith('R')) {
+          return parts[2]; // 返回新文件名
+        }
+
+        // 其他情况：A/M filename
+        return parts[1];
+      });
 
     return stagedFiles;
   } catch (error) {
