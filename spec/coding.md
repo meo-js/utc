@@ -119,10 +119,11 @@ function encodeInto(out: T): void;
 
 ## 注释
 
-- 无论是摘要或是描述，都应统一使用英文，按照完整的句子格式书写；即首字母大写，以句号结尾。
-- 单行短语注释可以不使用句号结尾。
+- 较为正式的注释应统一使用英文，按照完整的句子格式书写；即首字母大写，以句号结尾。
+- 代码行间注释推荐首字母小写，并且可视情况不使用句号结尾。
 - 若出现代码中的标识符，不要改变其大小写。
-- 代码、标识符、符号需使用 `{@link symbol}` 而非任何引号包裹，这样能点击链接跳转到定义处，需注意需确保链接的符号已至少作为 `type` 被导入。
+- 文档注释中的代码、标识符、符号需使用 `{@link symbol}` 包裹，这样能点击链接跳转到定义处，需注意需确保链接的符号已至少作为 `type` 被导入。
+- 其它注释中的代码、标识符、符号需使用反引号（\`）包裹。
 - 无法使用 `{@link symbol}` 跳转的符号则使用反引号（\`）包裹，例如 `number`、`string` 等。
 
 ### 特殊前缀
@@ -214,7 +215,7 @@ function encodeInto(out: T): void;
 
 - 应统一使用英文，并按照完整的句子格式书写；即首字母大写，以句号结尾。
 - 若出现代码中的标识符，不要改变其大小写。
-- 代码、标识符需使用反引号（`）而非引号包裹。
+- 代码、标识符需使用反引号（\`）而非引号包裹。
 
 ### 错误规范
 
@@ -248,7 +249,7 @@ function encodeInto(out: T): void;
 
   ```
   Can't find file "./a.png".
-  - help: try to use the `ignoreCase` option.
+  - help: Try to use the `ignoreCase` option.
   ```
 
   多个建议使用序号列表逐个列出：
@@ -256,8 +257,8 @@ function encodeInto(out: T): void;
   ```
   Can't find file "./a.png".
   - help:
-      1. confirm the filename is correct.
-      2. try to use the `ignoreCase` option.
+      1. Confirm the filename is correct.
+      2. Try to use the `ignoreCase` option.
   ```
 
 ## 泛型
