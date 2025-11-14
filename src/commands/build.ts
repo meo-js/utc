@@ -41,8 +41,19 @@ const { scriptExt, scriptExts } = glob;
 cli.command(
   'build',
   'Build the project.',
-  () => {},
+  yargs =>
+    yargs.option('ci', {
+      type: 'string',
+      describe:
+        'Enable CI mode and auto-commit all changes after successful build. Use --ci or --ci=<message>.',
+    }),
   async args => {
+    let {
+      ciEnabled,
+      ciMessage,
+    }: { ciEnabled: boolean; ciMessage: string | undefined } =
+      parseArguments(args);
+
     const config = await resolveConfigFromArgv(args);
     let pkg = await readPackageJson(config.project);
 
@@ -84,8 +95,28 @@ cli.command(
       await runPublintCheck(config.project);
       await runAttwCheck(config.project);
     }
+
+    if (ciEnabled && ciMessage) {
+      await runCiAutoCommit(config.project, ciMessage);
+    }
   },
 );
+
+function parseArguments(args: { ci: string | undefined }) {
+  const rawCi = args.ci;
+  let ciEnabled = false;
+  let ciMessage: string | undefined;
+
+  if (rawCi !== undefined && rawCi !== null) {
+    ciEnabled = true;
+    if (typeof rawCi === 'string' && rawCi.length > 0) {
+      ciMessage = rawCi;
+    } else {
+      ciMessage = 'chore: auto build commit';
+    }
+  }
+  return { ciEnabled, ciMessage };
+}
 
 async function buildBin(
   bin: Record<string, string>,
@@ -1246,4 +1277,49 @@ function formatAttwProblem(problem: Problem): string {
     default:
       return `  ❓ Unknown problem: ${JSON.stringify(problem)}`;
   }
+}
+
+async function execGit(
+  args: string[],
+  cwd: string,
+): Promise<{ stdout: string; stderr: string }> {
+  const cmd = `git ${args.map(a => JSON.stringify(a)).join(' ')}`;
+  try {
+    const { stdout, stderr } = await promisify(exec)(cmd, {
+      cwd,
+      encoding: 'utf8',
+    });
+    return { stdout: stdout ?? '', stderr: stderr ?? '' };
+  } catch (error: any) {
+    const stdout: string = error?.stdout ?? '';
+    const stderr: string = error?.stderr ?? '';
+    console.error(
+      `[utc:ci] git command failed: ${cmd}\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+    );
+    throw new Error(
+      `Git command failed in CI mode: ${cmd} (${error?.message ?? error})`,
+    );
+  }
+}
+
+async function runCiAutoCommit(projectRoot: string, message: string) {
+  console.log('[utc:ci] ci mode enabled, preparing to commit changes...');
+
+  await execGit(['rev-parse', '--is-inside-work-tree'], projectRoot);
+
+  await execGit(['add', '-A'], projectRoot);
+
+  const { stdout: diffCached } = await execGit(
+    ['diff', '--cached', '--name-only'],
+    projectRoot,
+  );
+
+  if (!diffCached.trim()) {
+    console.log('[utc:ci] no changes to commit, skip auto commit.');
+    return;
+  }
+
+  await execGit(['commit', '-m', message], projectRoot);
+
+  console.log('[utc:ci] changes committed with message:', message);
 }
